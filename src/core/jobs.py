@@ -59,3 +59,4 @@ class ProgressEvent:
     eta: str = ""
     status: str = ""
     line: str = ""
+    indeterminate: bool = False

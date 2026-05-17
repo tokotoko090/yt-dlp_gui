@@ -306,6 +306,7 @@ class MainWindow(QMainWindow):
         self.download_thread.finished.connect(self.download_thread.deleteLater)
         self.start_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
+        self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.download_thread.start()
 
@@ -316,7 +317,11 @@ class MainWindow(QMainWindow):
 
     def _on_progress(self, event: ProgressEvent) -> None:
         if event.percent is not None:
+            if self.progress.maximum() == 0:
+                self.progress.setRange(0, 100)
             self.progress.setValue(int(event.percent))
+        elif event.indeterminate:
+            self.progress.setRange(0, 0)
         status = event.status or "処理中"
         if event.speed:
             status += f" / {event.speed}"

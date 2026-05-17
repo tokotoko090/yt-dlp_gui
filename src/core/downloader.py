@@ -15,6 +15,16 @@ PROGRESS_RE = re.compile(
     r"\[download\]\s+(?P<percent>\d+(?:\.\d+)?)%.*?(?:at\s+(?P<speed>\S+))?.*?(?:ETA\s+(?P<eta>\S+))?"
 )
 
+POSTPROCESS_STATUS = {
+    "[Merger]": "映像と音声を結合中",
+    "[VideoConvertor]": "動画を変換中",
+    "[ExtractAudio]": "音声を変換中",
+    "[EmbedSubtitle]": "字幕を埋め込み中",
+    "[EmbedThumbnail]": "サムネイルを埋め込み中",
+    "[Metadata]": "メタデータを埋め込み中",
+    "[MoveFiles]": "ファイルを保存中",
+}
+
 
 class Downloader(QObject):
     progress = Signal(object)
@@ -71,6 +81,9 @@ class Downloader(QObject):
 def _parse_progress(line: str) -> ProgressEvent:
     match = PROGRESS_RE.search(line)
     if not match:
+        for marker, status in POSTPROCESS_STATUS.items():
+            if marker in line:
+                return ProgressEvent(status=status, line=line, indeterminate=True)
         return ProgressEvent(line=line)
     return ProgressEvent(
         percent=float(match.group("percent")),
