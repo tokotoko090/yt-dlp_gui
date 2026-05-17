@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.core.command_builder import build_ytdlp_command
-from src.core.jobs import DownloadJob
+from src.core.jobs import DownloadJob, SelectedFormat
 
 
 def make_job(**overrides: object) -> DownloadJob:
@@ -79,3 +79,32 @@ def test_mp4_prefers_split_1080p_capable_formats() -> None:
     joined = " ".join(cmd)
     assert "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]" in joined
     assert "best[height<=1080]" in joined
+
+
+def test_selected_video_and_audio_format_ids_are_used() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(selected_format=SelectedFormat(video_format_id="248", audio_format_id="251")),
+    )
+    joined = " ".join(cmd)
+    assert "-f 248+251" in joined
+
+
+def test_selected_webm_to_mp4_adds_recode() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(
+            container="mp4",
+            selected_format=SelectedFormat(
+                video_format_id="248",
+                audio_format_id="251",
+                output_ext="mp4",
+                needs_recode=True,
+            ),
+        ),
+    )
+    joined = " ".join(cmd)
+    assert "-f 248+251" in joined
+    assert "--recode-video mp4" in joined

@@ -43,12 +43,19 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
 
     if job.mode == "audio":
         codec = job.container if job.container in AUDIO_EXTENSIONS else "mp3"
+        if job.selected_format and job.selected_format.audio_format_id:
+            args.extend(["-f", job.selected_format.audio_format_id])
         args.extend(["-x", "--audio-format", codec])
         if job.audio_codec != "auto":
             args.extend(["--postprocessor-args", f"ffmpeg:-c:a {job.audio_codec}"])
     else:
         args.extend(["--merge-output-format", _safe_video_container(job.container)])
-        args.extend(["-f", _format_selector(job)])
+        if job.selected_format and job.selected_format.format_selector:
+            args.extend(["-f", job.selected_format.format_selector])
+            if job.selected_format.needs_recode:
+                args.extend(["--recode-video", job.selected_format.output_ext])
+        else:
+            args.extend(["-f", _format_selector(job)])
 
     args.append(job.url)
     return args

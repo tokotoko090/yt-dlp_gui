@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -26,8 +27,10 @@ from PySide6.QtWidgets import (
 
 from src.core.config import AppConfig, ConfigStore
 from src.core.downloader import Downloader
-from src.core.jobs import DownloadJob, ProgressEvent
+from src.core.format_probe import FormatProbeResult, FormatProbeWorker
+from src.core.jobs import DownloadJob, ProgressEvent, SelectedFormat
 from src.core.updater import YtDlpUpdater
+from src.ui.format_dialog import FormatSelectionDialog
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +43,9 @@ class MainWindow(QMainWindow):
         self.downloader: Downloader | None = None
         self.pending_urls: list[str] = []
         self.total_urls = 0
+        self.current_url = ""
+        self.format_thread: QThread | None = None
+        self.format_worker: FormatProbeWorker | None = None
         self.update_thread: QThread | None = None
         self.updater: YtDlpUpdater | None = None
         self.tray_icon = self._build_tray_icon()
@@ -231,9 +237,44 @@ class MainWindow(QMainWindow):
             self.status_label.setText("すべて完了")
             self._notify_download_complete()
             return
-        self._run_job(self.pending_urls.pop(0))
+        self.current_url = self.pending_urls.pop(0)
+        self._fetch_formats(self.current_url)
 
-    def _run_job(self, url: str) -> None:
+    def _fetch_formats(self, url: str) -> None:
+        self.start_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
+        self.status_label.setText("画質/音質候補を取得中")
+        self._append_log(f"候補を取得中: {url}")
+        self.format_thread = QThread()
+        self.format_worker = FormatProbeWorker(url, self.cookies_edit.text().strip())
+        self.format_worker.moveToThread(self.format_thread)
+        self.format_thread.started.connect(self.format_worker.run)
+        self.format_worker.finished.connect(self._on_formats_finished)
+        self.format_worker.finished.connect(self.format_thread.quit)
+        self.format_thread.finished.connect(self.format_thread.deleteLater)
+        self.format_thread.start()
+
+    def _on_formats_finished(self, ok: bool, result: object, message: str) -> None:
+        if not ok or not isinstance(result, FormatProbeResult):
+            self._append_log(f"候補取得に失敗しました。自動選択で続行します: {message}")
+            self._run_job(self.current_url, None)
+            return
+
+        mode = "audio" if self.mode_combo.currentText() == "音声のみ" else "video"
+        dialog = FormatSelectionDialog(result, mode, self.ext_combo.currentText(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            self.pending_urls.clear()
+            self.start_btn.setEnabled(True)
+            self.cancel_btn.setEnabled(False)
+            self.status_label.setText("キャンセル")
+            self._append_log("ダウンロードをキャンセルしました。")
+            return
+        selected = dialog.selected_format()
+        if selected.needs_recode:
+            self._append_log("高画質取得後にmp4へ変換します。")
+        self._run_job(self.current_url, selected)
+
+    def _run_job(self, url: str, selected_format: SelectedFormat | None) -> None:
         job = DownloadJob(
             url=url,
             output_dir=self.output_edit.text(),
@@ -248,6 +289,7 @@ class MainWindow(QMainWindow):
             metadata=self.metadata_check.isChecked(),
             cookies_path=self.cookies_edit.text().strip(),
             retry_count=self.retry_spin.value(),
+            selected_format=selected_format,
         )
         self.download_thread = QThread()
         self.downloader = Downloader(job)
