@@ -19,5 +19,6 @@ vendor/*.exe
 vendor/*.dll
 vendor/*.zip
 vendor/*.7z
+vendor/.downloads/
 vendor/ffmpeg/
 vendor/yt-dlp/

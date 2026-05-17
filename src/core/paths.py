@@ -21,7 +21,10 @@ def bundled_root() -> Path:
 
 
 def vendor_path(filename: str) -> Path:
-    return bundled_root() / "vendor" / filename
+    bundled = bundled_root() / "vendor" / filename
+    if bundled.exists():
+        return bundled
+    return app_root() / "vendor" / filename
 
 
 def user_data_dir() -> Path:
