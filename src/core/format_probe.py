@@ -43,9 +43,32 @@ class FormatProbeWorker(QObject):
 
 
 def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatProbeResult:
+    default_data = _probe_format_data(ytdlp_path, url, cookies_path)
+    default_result = parse_format_data(default_data)
+    if not _is_youtube_url(url) or _has_rich_video_formats(default_result):
+        return default_result
+
+    enhanced_data = _probe_format_data(
+        ytdlp_path,
+        url,
+        cookies_path,
+        "youtube:player-client=web,web_safari,mweb,ios",
+    )
+    enhanced_result = parse_format_data(enhanced_data)
+    return _better_result(default_result, enhanced_result)
+
+
+def _probe_format_data(
+    ytdlp_path: Path,
+    url: str,
+    cookies_path: str = "",
+    extractor_args: str = "",
+) -> dict[str, Any]:
     cmd = [str(ytdlp_path), "-J", "--no-playlist", url]
     if cookies_path:
         cmd[1:1] = ["--cookies", cookies_path]
+    if extractor_args:
+        cmd[1:1] = ["--extractor-args", extractor_args]
     completed = subprocess.run(
         cmd,
         capture_output=True,
@@ -58,12 +81,34 @@ def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatP
     if completed.returncode != 0:
         message = completed.stderr.strip() or completed.stdout.strip() or "フォーマット取得に失敗しました。"
         raise RuntimeError(message)
-    return parse_format_json(completed.stdout)
+    return json.loads(completed.stdout)
 
 
 def parse_format_json(raw_json: str) -> FormatProbeResult:
     data = json.loads(raw_json)
     return parse_format_data(data)
+
+
+def _is_youtube_url(url: str) -> bool:
+    lowered = url.lower()
+    return "youtube.com" in lowered or "youtu.be" in lowered
+
+
+def _has_rich_video_formats(result: FormatProbeResult) -> bool:
+    return len(result.video_options) >= 2 or _max_height(result) > 360
+
+
+def _better_result(first: FormatProbeResult, second: FormatProbeResult) -> FormatProbeResult:
+    first_score = (_max_height(first), len(first.video_options), len(first.audio_options), len(first.muxed_options))
+    second_score = (_max_height(second), len(second.video_options), len(second.audio_options), len(second.muxed_options))
+    if second_score > first_score:
+        return second
+    return first
+
+
+def _max_height(result: FormatProbeResult) -> int:
+    heights = [item.height for item in result.video_options + result.muxed_options]
+    return max(heights, default=0)
 
 
 def parse_format_data(data: dict[str, Any]) -> FormatProbeResult:

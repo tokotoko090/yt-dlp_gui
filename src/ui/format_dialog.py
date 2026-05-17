@@ -34,10 +34,15 @@ class FormatSelectionDialog(QDialog):
             self._fill_combo(self.audio_combo, result.audio_options + result.muxed_options)
             form.addRow("音声", self.audio_combo)
         else:
-            self._fill_combo(self.video_combo, result.video_options + result.muxed_options)
+            video_options = result.video_options + result.muxed_options
+            self._fill_combo(self.video_combo, video_options)
             self._fill_combo(self.audio_combo, result.audio_options)
             form.addRow("映像", self.video_combo)
-            form.addRow("音声", self.audio_combo)
+            if result.audio_options:
+                form.addRow("音声", self.audio_combo)
+            else:
+                self.audio_combo.setEnabled(False)
+                form.addRow("音声", QLabel("選択した映像に含まれる音声を使用"))
 
         layout.addLayout(form)
 
@@ -56,7 +61,7 @@ class FormatSelectionDialog(QDialog):
         video = self._current_option(self.video_combo)
         audio = self._current_option(self.audio_combo)
         video_id = video.format_id if video else ""
-        audio_id = audio.format_id if audio else ""
+        audio_id = audio.format_id if audio and video and video.kind != "muxed" else ""
         source_ext = video.ext if video else ""
         needs_recode = self.output_ext == "mp4" and source_ext not in {"", "mp4"}
         return SelectedFormat(

@@ -55,3 +55,37 @@ def test_parse_webm_vp9_high_quality_format() -> None:
     })
     assert result.video_options[0].format_id == "248"
     assert result.muxed_options[0].format_id == "18"
+
+
+def test_rich_video_formats_are_sorted_above_360p_muxed() -> None:
+    result = parse_format_data({
+        "formats": [
+            {
+                "format_id": "18",
+                "ext": "mp4",
+                "height": 360,
+                "vcodec": "avc1",
+                "acodec": "mp4a",
+                "tbr": 600,
+            },
+            {
+                "format_id": "399",
+                "ext": "mp4",
+                "height": 1080,
+                "fps": 30,
+                "vcodec": "av01",
+                "acodec": "none",
+                "tbr": 1200,
+            },
+            {
+                "format_id": "140",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a",
+                "abr": 129,
+            },
+        ],
+    })
+    assert result.video_options[0].format_id == "399"
+    assert result.audio_options[0].format_id == "140"
+    assert result.muxed_options[0].format_id == "18"
