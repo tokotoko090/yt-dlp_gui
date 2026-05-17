@@ -256,8 +256,12 @@ class MainWindow(QMainWindow):
 
     def _on_formats_finished(self, ok: bool, result: object, message: str) -> None:
         if not ok or not isinstance(result, FormatProbeResult):
-            self._append_log(f"候補取得に失敗しました。自動選択で続行します: {message}")
-            self._run_job(self.current_url, None)
+            self.pending_urls.clear()
+            self.start_btn.setEnabled(True)
+            self.cancel_btn.setEnabled(False)
+            self.status_label.setText("候補取得失敗")
+            self._append_log(f"候補取得に失敗しました: {message}")
+            QMessageBox.warning(self, "候補取得失敗", f"画質/音質候補を取得できませんでした。\n\n{message}")
             return
 
         mode = "audio" if self.mode_combo.currentText() == "音声のみ" else "video"
@@ -290,6 +294,7 @@ class MainWindow(QMainWindow):
             cookies_path=self.cookies_edit.text().strip(),
             retry_count=self.retry_spin.value(),
             selected_format=selected_format,
+            extractor_args=selected_format.extractor_args if selected_format else "",
         )
         self.download_thread = QThread()
         self.downloader = Downloader(job)

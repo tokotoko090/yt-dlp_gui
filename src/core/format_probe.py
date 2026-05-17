@@ -18,6 +18,7 @@ class FormatProbeResult:
     video_options: list[FormatOption]
     audio_options: list[FormatOption]
     muxed_options: list[FormatOption]
+    extractor_args: str = ""
 
 
 class FormatProbeWorker(QObject):
@@ -48,13 +49,10 @@ def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatP
     if not _is_youtube_url(url) or _has_rich_video_formats(default_result):
         return default_result
 
-    enhanced_data = _probe_format_data(
-        ytdlp_path,
-        url,
-        cookies_path,
-        "youtube:player-client=web,web_safari,mweb,ios",
-    )
+    enhanced_args = "youtube:player-client=all"
+    enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args)
     enhanced_result = parse_format_data(enhanced_data)
+    enhanced_result.extractor_args = enhanced_args
     return _better_result(default_result, enhanced_result)
 
 

@@ -56,7 +56,11 @@ class FormatSelectionDialog(QDialog):
     def selected_format(self) -> SelectedFormat:
         if self.mode == "audio":
             audio = self._current_option(self.audio_combo)
-            return SelectedFormat(audio_format_id=audio.format_id if audio else "", output_ext=self.output_ext)
+            return SelectedFormat(
+                audio_format_id=audio.format_id if audio else "",
+                output_ext=self.output_ext,
+                extractor_args=self.result.extractor_args,
+            )
 
         video = self._current_option(self.video_combo)
         audio = self._current_option(self.audio_combo)
@@ -69,6 +73,7 @@ class FormatSelectionDialog(QDialog):
             audio_format_id=audio_id,
             output_ext=self.output_ext,
             needs_recode=needs_recode,
+            extractor_args=self.result.extractor_args,
         )
 
     def _fill_combo(self, combo: QComboBox, options: list[FormatOption]) -> None:

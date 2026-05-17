@@ -108,3 +108,20 @@ def test_selected_webm_to_mp4_adds_recode() -> None:
     joined = " ".join(cmd)
     assert "-f 248+251" in joined
     assert "--recode-video mp4" in joined
+
+
+def test_selected_format_extractor_args_are_used() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(
+            selected_format=SelectedFormat(
+                video_format_id="137",
+                audio_format_id="140",
+                extractor_args="youtube:player-client=all",
+            ),
+        ),
+    )
+    joined = " ".join(cmd)
+    assert "--extractor-args youtube:player-client=all" in joined
+    assert "-f 137+140" in joined

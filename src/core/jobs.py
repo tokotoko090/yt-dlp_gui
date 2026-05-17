@@ -24,6 +24,7 @@ class SelectedFormat:
     audio_format_id: str = ""
     output_ext: str = ""
     needs_recode: bool = False
+    extractor_args: str = ""
 
     @property
     def format_selector(self) -> str:
@@ -48,6 +49,7 @@ class DownloadJob:
     cookies_path: str
     retry_count: int
     selected_format: SelectedFormat | None = None
+    extractor_args: str = ""
 
 
 @dataclass(slots=True)

@@ -25,6 +25,12 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
         "%(title).200B [%(id)s].%(ext)s",
     ]
 
+    extractor_args = job.extractor_args
+    if job.selected_format and job.selected_format.extractor_args:
+        extractor_args = job.selected_format.extractor_args
+    if extractor_args:
+        args[1:1] = ["--extractor-args", extractor_args]
+
     if not job.playlist:
         args.append("--no-playlist")
 
