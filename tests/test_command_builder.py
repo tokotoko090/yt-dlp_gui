@@ -56,3 +56,13 @@ def test_cookies_and_playlist_command() -> None:
     assert "--cookies" in cmd
     assert "C:/cookies.txt" in cmd
     assert "--no-playlist" not in cmd
+
+
+def test_video_quality_limit_command() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(quality="2160p以下"),
+    )
+    joined = " ".join(cmd)
+    assert "[height<=2160]" in joined

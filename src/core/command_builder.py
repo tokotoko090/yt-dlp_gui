@@ -59,10 +59,17 @@ def _safe_video_container(container: str) -> str:
 
 
 def _height_filter(quality: str) -> str:
-    if quality == "1080p以下":
-        return "[height<=1080]"
-    if quality == "720p以下":
-        return "[height<=720]"
+    height_limits = {
+        "4320p以下": 4320,
+        "2160p以下": 2160,
+        "1440p以下": 1440,
+        "1080p以下": 1080,
+        "720p以下": 720,
+        "480p以下": 480,
+        "360p以下": 360,
+    }
+    if quality in height_limits:
+        return f"[height<={height_limits[quality]}]"
     return ""
 
 

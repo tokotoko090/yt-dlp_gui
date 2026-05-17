@@ -1,24 +1,27 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QThread
+from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QProgressBar,
+    QStyle,
+    QSystemTrayIcon,
     QSpinBox,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QComboBox,
-    QLineEdit,
-    QCheckBox,
 )
 
 from src.core.config import AppConfig, ConfigStore
@@ -36,8 +39,10 @@ class MainWindow(QMainWindow):
         self.download_thread: QThread | None = None
         self.downloader: Downloader | None = None
         self.pending_urls: list[str] = []
+        self.total_urls = 0
         self.update_thread: QThread | None = None
         self.updater: YtDlpUpdater | None = None
+        self.tray_icon = self._build_tray_icon()
 
         tabs = QTabWidget()
         tabs.addTab(self._build_download_tab(), "ダウンロード")
@@ -71,7 +76,16 @@ class MainWindow(QMainWindow):
 
         self.ext_combo = QComboBox()
         self.quality_combo = QComboBox()
-        self.quality_combo.addItems(["最高", "1080p以下", "720p以下"])
+        self.quality_combo.addItems([
+            "最高",
+            "4320p以下",
+            "2160p以下",
+            "1440p以下",
+            "1080p以下",
+            "720p以下",
+            "480p以下",
+            "360p以下",
+        ])
 
         self.video_codec_combo = QComboBox()
         self.video_codec_combo.addItems(["自動", "H.264優先", "VP9優先", "AV1優先"])
@@ -136,6 +150,15 @@ class MainWindow(QMainWindow):
         self._sync_extension_options()
         return root
 
+    def _build_tray_icon(self) -> QSystemTrayIcon | None:
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return None
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown)
+        tray_icon = QSystemTrayIcon(icon, self)
+        tray_icon.setToolTip("yt-dlp GUI")
+        tray_icon.show()
+        return tray_icon
+
     def _build_settings_tab(self) -> QWidget:
         root = QWidget()
         layout = QVBoxLayout(root)
@@ -198,6 +221,7 @@ class MainWindow(QMainWindow):
             self._append_log("複数URLは順番に処理します。")
         self._save_config()
         self.pending_urls = urls
+        self.total_urls = len(urls)
         self._run_next_job()
 
     def _run_next_job(self) -> None:
@@ -205,6 +229,7 @@ class MainWindow(QMainWindow):
             self.start_btn.setEnabled(True)
             self.cancel_btn.setEnabled(False)
             self.status_label.setText("すべて完了")
+            self._notify_download_complete()
             return
         self._run_job(self.pending_urls.pop(0))
 
@@ -291,6 +316,18 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "yt-dlp", message)
         else:
             QMessageBox.warning(self, "yt-dlp", message)
+
+    def _notify_download_complete(self) -> None:
+        message = f"{self.total_urls}件のダウンロードが完了しました。"
+        if self.tray_icon:
+            self.tray_icon.showMessage(
+                "ダウンロード完了",
+                message,
+                QSystemTrayIcon.MessageIcon.Information,
+                8000,
+            )
+        QApplication.alert(self, 8000)
+        self._append_log(message)
 
     def _save_config(self) -> None:
         self.config = AppConfig(
