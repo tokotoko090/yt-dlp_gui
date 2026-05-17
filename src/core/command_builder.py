@@ -59,6 +59,13 @@ def _safe_video_container(container: str) -> str:
 
 
 def _height_filter(quality: str) -> str:
+    limit = _height_limit(quality)
+    if limit:
+        return f"[height<={limit}]"
+    return ""
+
+
+def _height_limit(quality: str) -> int | None:
     height_limits = {
         "4320p以下": 4320,
         "2160p以下": 2160,
@@ -68,9 +75,7 @@ def _height_filter(quality: str) -> str:
         "480p以下": 480,
         "360p以下": 360,
     }
-    if quality in height_limits:
-        return f"[height<={height_limits[quality]}]"
-    return ""
+    return height_limits.get(quality)
 
 
 def _codec_filter(video_codec: str) -> str:
@@ -86,8 +91,21 @@ def _codec_filter(video_codec: str) -> str:
 def _format_selector(job: DownloadJob) -> str:
     height = _height_filter(job.quality)
     codec = _codec_filter(job.video_codec)
+    container = _safe_video_container(job.container)
+
     if codec:
-        preferred = f"bv*{height}{codec}+ba/b{height}{codec}"
-        fallback = f"bv*{height}+ba/b{height}/best"
+        preferred = f"bestvideo{height}{codec}+bestaudio"
+        fallback = f"bestvideo{height}+bestaudio/best{height}/best"
         return f"{preferred}/{fallback}"
-    return f"bv*{height}+ba/b{height}/best"
+
+    if container == "mp4":
+        preferred = f"bestvideo{height}[ext=mp4]+bestaudio[ext=m4a]"
+        fallback = f"bestvideo{height}+bestaudio/best{height}/best"
+        return f"{preferred}/{fallback}"
+
+    if container == "webm":
+        preferred = f"bestvideo{height}[ext=webm]+bestaudio[ext=webm]"
+        fallback = f"bestvideo{height}+bestaudio/best{height}/best"
+        return f"{preferred}/{fallback}"
+
+    return f"bestvideo{height}+bestaudio/best{height}/best"

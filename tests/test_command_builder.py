@@ -32,6 +32,8 @@ def test_video_mp4_h264_command() -> None:
     )
     joined = " ".join(cmd)
     assert "--merge-output-format mp4" in joined
+    assert "bestvideo" in joined
+    assert "bestaudio" in joined
     assert "[vcodec^=avc1]" in joined
     assert "--no-playlist" in cmd
 
@@ -66,3 +68,14 @@ def test_video_quality_limit_command() -> None:
     )
     joined = " ".join(cmd)
     assert "[height<=2160]" in joined
+
+
+def test_mp4_prefers_split_1080p_capable_formats() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(container="mp4", quality="1080p以下", video_codec="自動"),
+    )
+    joined = " ".join(cmd)
+    assert "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]" in joined
+    assert "best[height<=1080]" in joined
