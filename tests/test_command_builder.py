@@ -12,7 +12,7 @@ def make_job(**overrides: object) -> DownloadJob:
         "container": "mp4",
         "quality": "最高",
         "video_codec": "自動",
-        "audio_codec": "自動",
+        "audio_codec": "auto",
         "playlist": False,
         "subtitles": False,
         "thumbnail": False,
@@ -32,13 +32,20 @@ def test_video_mp4_h264_command() -> None:
     )
     joined = " ".join(cmd)
     assert "--merge-output-format mp4" in joined
+    assert "--ignore-config" in cmd
     assert "bestvideo" in joined
     assert "bestaudio" in joined
     assert "[vcodec^=avc1]" in joined
     assert "--no-playlist" in cmd
+    assert "--js-runtimes" in cmd
+    assert "node" in cmd
+    assert "%(title).200B.%(ext)s" in cmd
+    assert "%(title).200B [%(id)s].%(ext)s" not in cmd
+    assert "--parse-metadata" in cmd
+    assert "%(uploader)s:%(meta_artist)s" in cmd
 
 
-def test_audio_mp3_command() -> None:
+def test_audio_mp3_command_uses_bestaudio_fallback() -> None:
     cmd = build_ytdlp_command(
         Path("vendor/yt-dlp.exe"),
         Path("vendor/ffmpeg.exe"),
@@ -47,6 +54,21 @@ def test_audio_mp3_command() -> None:
     joined = " ".join(cmd)
     assert "-x" in cmd
     assert "--audio-format mp3" in joined
+    assert "-f bestaudio/best" in joined
+    assert "%(title).200B.audio-source.%(ext)s" in cmd
+
+
+def test_selected_audio_format_keeps_bestaudio_fallback() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(
+            mode="audio",
+            container="m4a",
+            selected_format=SelectedFormat(audio_format_id="140"),
+        ),
+    )
+    assert "140/bestaudio/best" in " ".join(cmd)
 
 
 def test_cookies_and_playlist_command() -> None:
@@ -108,6 +130,44 @@ def test_selected_webm_to_mp4_adds_recode() -> None:
     joined = " ".join(cmd)
     assert "-f 248+251" in joined
     assert "--recode-video mp4" in joined
+
+
+def test_selected_webm_to_mp4_can_use_nvenc() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(
+            container="mp4",
+            video_encoder="h264_nvenc",
+            selected_format=SelectedFormat(
+                video_format_id="248",
+                audio_format_id="251",
+                output_ext="mp4",
+                needs_recode=True,
+            ),
+        ),
+    )
+    joined = " ".join(cmd)
+    assert "VideoConvertor+ffmpeg_o:-c:v h264_nvenc" in joined
+    assert "-c:a aac" in joined
+
+
+def test_selected_webm_to_mp4_auto_uses_nvenc() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(
+            container="mp4",
+            video_encoder="auto",
+            selected_format=SelectedFormat(
+                video_format_id="248",
+                audio_format_id="251",
+                output_ext="mp4",
+                needs_recode=True,
+            ),
+        ),
+    )
+    assert "VideoConvertor+ffmpeg_o:-c:v h264_nvenc" in " ".join(cmd)
 
 
 def test_selected_format_extractor_args_are_used() -> None:

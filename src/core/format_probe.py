@@ -6,10 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal, Slot
-
 from src.core.jobs import FormatOption
-from src.core.paths import vendor_path
 
 
 @dataclass(slots=True)
@@ -21,35 +18,13 @@ class FormatProbeResult:
     extractor_args: str = ""
 
 
-class FormatProbeWorker(QObject):
-    finished = Signal(bool, object, str)
-
-    def __init__(self, url: str, cookies_path: str = "") -> None:
-        super().__init__()
-        self.url = url
-        self.cookies_path = cookies_path
-
-    @Slot()
-    def run(self) -> None:
-        ytdlp = vendor_path("yt-dlp.exe")
-        if not ytdlp.exists():
-            self.finished.emit(False, None, f"yt-dlp.exe が見つかりません: {ytdlp}")
-            return
-        try:
-            result = probe_formats(ytdlp, self.url, self.cookies_path)
-        except Exception as exc:
-            self.finished.emit(False, None, str(exc))
-            return
-        self.finished.emit(True, result, "")
-
-
 def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatProbeResult:
     default_data = _probe_format_data(ytdlp_path, url, cookies_path)
     default_result = parse_format_data(default_data)
     if not _is_youtube_url(url) or _has_rich_video_formats(default_result):
         return default_result
 
-    enhanced_args = "youtube:player-client=all"
+    enhanced_args = "youtube:player_client=all"
     enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args)
     enhanced_result = parse_format_data(enhanced_data)
     enhanced_result.extractor_args = enhanced_args
@@ -62,7 +37,7 @@ def _probe_format_data(
     cookies_path: str = "",
     extractor_args: str = "",
 ) -> dict[str, Any]:
-    cmd = [str(ytdlp_path), "-J", "--no-playlist", url]
+    cmd = [str(ytdlp_path), "--js-runtimes", "node", "-J", "--no-playlist", url]
     if cookies_path:
         cmd[1:1] = ["--cookies", cookies_path]
     if extractor_args:

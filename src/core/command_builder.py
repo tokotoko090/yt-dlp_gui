@@ -7,13 +7,17 @@ from src.core.jobs import DownloadJob
 
 VIDEO_EXTENSIONS = {"mp4", "mkv", "webm"}
 AUDIO_EXTENSIONS = {"mp3", "m4a", "opus", "wav"}
+AUTO_CONTAINERS = {"", "auto", "自動"}
 
 
 def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -> list[str]:
     args = [
         str(ytdlp_path),
+        "--ignore-config",
         "--newline",
         "--no-color",
+        "--js-runtimes",
+        "node",
         "--progress",
         "--retries",
         str(job.retry_count),
@@ -22,7 +26,10 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
         "-P",
         job.output_dir,
         "-o",
-        "%(title).200B [%(id)s].%(ext)s",
+        _output_template(job),
+        "--embed-metadata",
+        "--parse-metadata",
+        "%(uploader)s:%(meta_artist)s",
     ]
 
     extractor_args = job.extractor_args
@@ -37,29 +44,32 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
     if job.cookies_path:
         args.extend(["--cookies", job.cookies_path])
 
-    if job.subtitles:
+    if job.subtitles and job.mode == "video":
         args.extend(["--write-subs", "--write-auto-subs", "--sub-langs", "ja,en.*"])
 
-    if job.thumbnail:
+    if job.thumbnail and job.mode == "video":
         args.append("--write-thumbnail")
 
-    if job.metadata:
-        args.append("--embed-metadata")
+    if job.metadata and job.mode == "video" and (ffmpeg_path.parent / "ffprobe.exe").exists():
         args.append("--embed-thumbnail")
 
     if job.mode == "audio":
         codec = job.container if job.container in AUDIO_EXTENSIONS else "mp3"
+        selector = "bestaudio/best"
         if job.selected_format and job.selected_format.audio_format_id:
-            args.extend(["-f", job.selected_format.audio_format_id])
-        args.extend(["-x", "--audio-format", codec])
-        if job.audio_codec != "auto":
+            selector = f"{job.selected_format.audio_format_id}/bestaudio/best"
+        args.extend(["-f", selector, "-x", "--audio-format", codec])
+        if job.audio_codec not in {"", "auto", "自動"}:
             args.extend(["--postprocessor-args", f"ffmpeg:-c:a {job.audio_codec}"])
     else:
-        args.extend(["--merge-output-format", _safe_video_container(job.container)])
+        video_container = _safe_video_container(job.container)
+        if video_container:
+            args.extend(["--merge-output-format", video_container])
         if job.selected_format and job.selected_format.format_selector:
             args.extend(["-f", job.selected_format.format_selector])
             if job.selected_format.needs_recode:
                 args.extend(["--recode-video", job.selected_format.output_ext])
+                args.extend(_video_recode_args(job))
         else:
             args.extend(["-f", _format_selector(job)])
 
@@ -68,7 +78,30 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
 
 
 def _safe_video_container(container: str) -> str:
+    if container in AUTO_CONTAINERS:
+        return ""
     return container if container in VIDEO_EXTENSIONS else "mp4"
+
+
+def _output_template(job: DownloadJob) -> str:
+    if job.mode == "audio":
+        return "%(title).200B.audio-source.%(ext)s"
+    return "%(title).200B.%(ext)s"
+
+
+def _video_recode_args(job: DownloadJob) -> list[str]:
+    encoder = str(getattr(job, "video_encoder", "") or "auto")
+    if encoder in {"", "auto", "自動", "h264_nvenc", "NVIDIA NVENC"}:
+        return [
+            "--postprocessor-args",
+            "VideoConvertor+ffmpeg_o:-c:v h264_nvenc -preset p5 -cq 23 -pix_fmt yuv420p -c:a aac -b:a 192k",
+        ]
+    if encoder in {"libx264", "CPU"}:
+        return [
+            "--postprocessor-args",
+            "VideoConvertor+ffmpeg_o:-c:v libx264 -preset medium -crf 22 -pix_fmt yuv420p -c:a aac -b:a 192k",
+        ]
+    return []
 
 
 def _height_filter(quality: str) -> str:

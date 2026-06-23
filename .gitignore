@@ -14,6 +14,7 @@ dist/
 logs/
 downloads/
 config.json
+.verification/
 
 vendor/*.exe
 vendor/*.dll

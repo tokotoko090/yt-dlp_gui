@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>yt-dlp Web UI</title>
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="app-header">
+        <div>
+          <h1>yt-dlp Web UI</h1>
+          <p id="appRoot"></p>
+        </div>
+        <div class="header-actions">
+          <button id="updateYtDlp" class="secondary" type="button">yt-dlp 更新</button>
+          <span id="ytDlpUpdateStatus" class="update-status" aria-live="polite"></span>
+          <button id="refreshJobs" class="icon-button" title="進捗を更新" type="button">↻</button>
+          <button id="shutdownButton" class="danger" type="button">終了</button>
+        </div>
+      </header>
+
+      <section class="layout">
+        <section class="workbench">
+          <section class="section">
+            <div class="section-head">
+              <span class="step">1</span>
+              <div>
+                <h2>URL</h2>
+                <p id="probeState">URLを入力して、まずDL可能な形式を取得します。</p>
+              </div>
+            </div>
+            <div class="url-row">
+              <input id="urlInput" type="text" spellcheck="false" placeholder="https://youtu.be/...">
+              <button id="fetchFormatsButton" class="primary" type="button">形式取得</button>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <span class="step">2</span>
+              <div>
+                <h2>DL設定</h2>
+                <p id="formatSummary">形式取得後に選択できます。</p>
+              </div>
+            </div>
+
+            <div class="settings-stack">
+              <section class="settings-group">
+                <h3>保存先</h3>
+                <div class="field">
+                  <label for="outputDir">保存先の選択</label>
+                  <div class="input-action">
+                    <input id="outputDir" type="text">
+                    <button id="selectOutputDir" class="secondary" type="button">フォルダ選択</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>フォーマット選択</h3>
+                <div class="format-mode" role="radiogroup" aria-label="フォーマット種別">
+                  <label>
+                    <input type="radio" name="modeSelect" value="video" checked>
+                    <span>動画</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="modeSelect" value="audio">
+                    <span>音声</span>
+                  </label>
+                </div>
+
+                <div class="settings-grid">
+                  <div class="field video-field">
+                    <label for="container">動画の形式選択</label>
+                    <select id="container">
+                      <option value="mp4">mp4</option>
+                      <option value="mkv">mkv</option>
+                      <option value="webm">webm</option>
+                    </select>
+                  </div>
+
+                  <div class="field audio-field">
+                    <label for="audioContainer">音声の形式選択</label>
+                    <select id="audioContainer">
+                      <option>m4a</option>
+                      <option>mp3</option>
+                      <option>opus</option>
+                      <option>wav</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>DL出来る画質・音質の選択</h3>
+                <div class="settings-grid">
+                  <div class="field video-field">
+                    <label for="videoFormat">解像度の選択</label>
+                    <select id="videoFormat" disabled>
+                      <option value="">形式取得後に表示</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="audioFormat">音質の選択</label>
+                    <select id="audioFormat" disabled>
+                      <option value="">形式取得後に表示</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>オプション</h3>
+                <div class="field">
+                  <label for="cookiesPath">Cookieの読み込み</label>
+                  <input id="cookiesPath" type="text" placeholder="必要な場合のみ">
+                </div>
+
+                <div class="option-row">
+                  <label><input id="metadata" type="checkbox"> サムネイル埋め込み</label>
+                  <label><input id="thumbnail" type="checkbox"> サムネイル保存</label>
+                  <label><input id="subtitles" type="checkbox"> 字幕の保存</label>
+                </div>
+              </section>
+
+              <div id="conversionNotice" class="notice hidden"></div>
+
+              <div class="queue-add-row">
+                <button id="addQueueButton" class="primary" type="button" disabled>キューに追加</button>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="side-column">
+          <section class="queue-panel">
+            <div class="queue-head">
+              <div>
+                <h2>キュー</h2>
+                <p id="queueSummary">0件</p>
+              </div>
+              <div class="queue-start-controls">
+                <label for="parallel">同時DL数</label>
+                <input id="parallel" type="number" min="1" max="8" value="2">
+                <button id="startAllButton" class="primary" type="button">まとめてDL開始</button>
+              </div>
+            </div>
+            <div id="queueItems" class="queue-items"></div>
+          </section>
+
+          <section class="queue-panel">
+            <div class="queue-head">
+              <div>
+                <h2>進捗</h2>
+                <p id="progressSummary">待機中</p>
+              </div>
+            </div>
+            <div id="jobs" class="jobs"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

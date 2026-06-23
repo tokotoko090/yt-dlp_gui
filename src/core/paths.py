@@ -1,29 +1,17 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 
-APP_NAME = "YtDlpGui"
+APP_NAME = "YtDlpWebUi"
 
 
 def app_root() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
 
 
-def bundled_root() -> Path:
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
-    return app_root()
-
-
 def vendor_path(filename: str) -> Path:
-    bundled = bundled_root() / "vendor" / filename
-    if bundled.exists():
-        return bundled
     return app_root() / "vendor" / filename
 
 
