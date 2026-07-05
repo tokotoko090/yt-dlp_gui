@@ -23,3 +23,5 @@ vendor/*.7z
 vendor/.downloads/
 vendor/ffmpeg/
 vendor/yt-dlp/
+
+AGENTS.md

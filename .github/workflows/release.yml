@@ -1,0 +1,88 @@
+name: Release portable build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to create or update, for example v0.1.0"
+        required: true
+        default: "v0.1.0"
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests
+        shell: pwsh
+        run: python -m pytest
+
+      - name: Build portable zip
+        shell: pwsh
+        run: .\scripts\build-portable.ps1
+
+      - name: Verify portable zip excludes external tools
+        shell: pwsh
+        run: |
+          $zip = "dist\yt-dlp-webui-portable.zip"
+          if (-not (Test-Path -LiteralPath $zip)) {
+            throw "Portable zip was not created: $zip"
+          }
+          $entries = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $zip)).Entries.FullName
+          $bundledTools = $entries | Where-Object { $_ -match '(^|/)(yt-dlp|ffmpeg)\.exe$' }
+          if ($bundledTools) {
+            throw "Portable zip must not bundle external tools: $($bundledTools -join ', ')"
+          }
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yt-dlp-webui-portable
+          path: dist/yt-dlp-webui-portable.zip
+          if-no-files-found: error
+
+      - name: Resolve release metadata
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            "tag=${{ github.ref_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "prerelease=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            "tag=${{ inputs.tag_name }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "prerelease=${{ inputs.prerelease }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.release.outputs.tag }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          files: dist/yt-dlp-webui-portable.zip
