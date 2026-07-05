@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.core.cookies import CHROME_COOKIE_SOURCE
 from src.core.jobs import FormatOption
 
 
@@ -20,14 +19,14 @@ class FormatProbeResult:
     extractor_args: str = ""
 
 
-def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "", use_browser_cookies: bool = False) -> FormatProbeResult:
-    default_data = _probe_format_data(ytdlp_path, url, cookies_path, use_browser_cookies=use_browser_cookies)
+def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatProbeResult:
+    default_data = _probe_format_data(ytdlp_path, url, cookies_path)
     default_result = parse_format_data(default_data)
     if not _is_youtube_url(url) or _has_rich_video_formats(default_result):
         return default_result
 
     enhanced_args = "youtube:player_client=all"
-    enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args, use_browser_cookies=use_browser_cookies)
+    enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args)
     enhanced_result = parse_format_data(enhanced_data)
     enhanced_result.extractor_args = enhanced_args
     return _better_result(default_result, enhanced_result)
@@ -38,13 +37,10 @@ def _probe_format_data(
     url: str,
     cookies_path: str = "",
     extractor_args: str = "",
-    use_browser_cookies: bool = False,
 ) -> dict[str, Any]:
     cmd = [str(ytdlp_path), "--js-runtimes", "node", "-J", "--no-playlist", url]
     if cookies_path:
         cmd[1:1] = ["--cookies", cookies_path]
-    elif use_browser_cookies:
-        cmd[1:1] = ["--cookies-from-browser", CHROME_COOKIE_SOURCE]
     if extractor_args:
         cmd[1:1] = ["--extractor-args", extractor_args]
     completed = subprocess.run(

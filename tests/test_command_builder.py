@@ -111,23 +111,11 @@ def test_cookies_and_playlist_command() -> None:
     assert "--no-playlist" not in cmd
 
 
-def test_browser_cookies_are_used_when_cookie_file_is_empty() -> None:
+def test_cookie_file_is_the_only_cookie_source() -> None:
     cmd = build_ytdlp_command(
         Path("vendor/yt-dlp.exe"),
         Path("vendor/ffmpeg.exe"),
-        make_job(use_browser_cookies=True),
-    )
-
-    assert "--cookies-from-browser" in cmd
-    assert "chrome:Profile 2" in cmd
-    assert "--cookies" not in cmd
-
-
-def test_cookie_file_takes_priority_over_browser_cookies() -> None:
-    cmd = build_ytdlp_command(
-        Path("vendor/yt-dlp.exe"),
-        Path("vendor/ffmpeg.exe"),
-        make_job(cookies_path="C:/cookies.txt", use_browser_cookies=True),
+        make_job(cookies_path="C:/cookies.txt"),
     )
 
     assert "--cookies" in cmd

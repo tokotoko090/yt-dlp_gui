@@ -1,8 +1,3 @@
-import json
-import subprocess
-from pathlib import Path
-
-from src.core import format_probe
 from src.core.format_probe import parse_format_data
 
 
@@ -119,20 +114,27 @@ def test_parse_thumbnail_url_from_thumbnail_list() -> None:
     assert result.thumbnail_url == "https://img.example/large.webp"
 
 
-def test_probe_format_data_can_use_chrome_browser_cookies(monkeypatch) -> None:
+def test_probe_format_data_uses_cookie_file_only(monkeypatch) -> None:
     captured = {}
 
     def fake_run(cmd, **kwargs):
         captured["cmd"] = cmd
+        import json
+        import subprocess
+
         return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"formats": []}), stderr="")
+
+    from pathlib import Path
+    from src.core import format_probe
 
     monkeypatch.setattr(format_probe.subprocess, "run", fake_run)
 
     format_probe._probe_format_data(
         Path("vendor/yt-dlp.exe"),
         "https://youtu.be/example",
-        use_browser_cookies=True,
+        cookies_path="C:/cookies.txt",
     )
 
-    assert "--cookies-from-browser" in captured["cmd"]
-    assert "chrome:Profile 2" in captured["cmd"]
+    assert "--cookies" in captured["cmd"]
+    assert "C:/cookies.txt" in captured["cmd"]
+    assert "--cookies-from-browser" not in captured["cmd"]

@@ -161,7 +161,6 @@ class DownloadManager:
             cookies_path=str(payload.get("cookies_path") or self.config.cookies_path),
             retry_count=int(payload.get("retry_count") or self.config.retry_count),
             artist_metadata=bool(payload.get("artist_metadata", True)),
-            use_browser_cookies=bool(payload.get("use_browser_cookies")),
             selected_format=selected_format,
             extractor_args=str(payload.get("extractor_args") or ""),
         )

@@ -26,13 +26,6 @@ def test_parse_video_convertor_as_indeterminate_progress() -> None:
     assert event.indeterminate
 
 
-def test_parse_chrome_cookie_database_copy_error() -> None:
-    event = _parse_progress("ERROR: Could not copy Chrome cookie database.")
-    assert event.status == "Chrome Cookieを読み込めません"
-    assert "Cookieファイル" in event.line
-    assert event.indeterminate
-
-
 def test_fallback_merge_output_path_removes_format_suffix() -> None:
     path = _merged_output_path(Path("C:/Downloads/sample [id].f313.webm"), "313", "webm")
     assert path == Path("C:/Downloads/sample [id].webm")

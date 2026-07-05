@@ -118,7 +118,6 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
                         ytdlp_path(),
                         url,
                         str(payload.get("cookies_path") or app.config.cookies_path),
-                        bool(payload.get("use_browser_cookies")),
                     )
                     result.thumbnail_url = _cache_thumbnail(result.thumbnail_url)
                 except Exception as exc:

@@ -89,7 +89,6 @@ async function probeUrl(url) {
     body: JSON.stringify({
       url,
       cookies_path: $("cookiesPath").value,
-      use_browser_cookies: $("browserCookies").checked,
     }),
   });
 }
@@ -228,7 +227,6 @@ function currentPayload(url, probe) {
     video_encoder: "auto",
     parallel: Number($("parallel").value || 2),
     cookies_path: $("cookiesPath").value,
-    use_browser_cookies: $("browserCookies").checked,
     playlist: false,
     artist_metadata: $("artistMetadata").checked,
     metadata: $("metadata").checked,
@@ -370,7 +368,6 @@ async function selectCookiesFile() {
     });
     if (!data.cancelled && data.path) {
       $("cookiesPath").value = data.path;
-      $("browserCookies").checked = false;
     }
   } catch (error) {
     setProbeState(error.message);
@@ -438,6 +435,7 @@ async function shutdownApp(force = false) {
       body: JSON.stringify({ force }),
     });
     document.body.innerHTML = '<main class="shell"><section class="section"><h1>終了しました</h1><p>このタブは閉じて構いません。</p></section></main>';
+    closeTabBestEffort();
   } catch (error) {
     if (error.status === 409 && confirm("実行中または待機中のジョブがあります。キャンセルして終了しますか？")) {
       await shutdownApp(true);
@@ -445,6 +443,23 @@ async function shutdownApp(force = false) {
     }
     setProbeState(error.message);
   }
+}
+
+function closeTabBestEffort() {
+  const close = () => {
+    try {
+      window.open("", "_self");
+      window.close();
+    } catch {
+      try {
+        window.close();
+      } catch {
+      }
+    }
+  };
+  close();
+  window.setTimeout(close, 100);
+  window.setTimeout(close, 500);
 }
 
 function renderJobs(jobs) {

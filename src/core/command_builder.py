@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.core.cookies import CHROME_COOKIE_SOURCE
 from src.core.jobs import DownloadJob
 
 
@@ -41,8 +40,6 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
 
     if job.cookies_path:
         args.extend(["--cookies", job.cookies_path])
-    elif job.use_browser_cookies:
-        args.extend(["--cookies-from-browser", CHROME_COOKIE_SOURCE])
 
     if job.subtitles and job.mode == "video":
         args.extend(["--write-subs", "--write-auto-subs", "--sub-langs", "ja,en.*"])
