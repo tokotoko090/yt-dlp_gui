@@ -18,11 +18,18 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
+  height: 100%;
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
+  overflow: hidden;
 }
 
 button,
@@ -34,8 +41,13 @@ textarea {
 
 .shell {
   width: min(1440px, calc(100% - 28px));
+  height: 100dvh;
   margin: 0 auto;
   padding: 18px 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .app-header {
@@ -126,8 +138,11 @@ p,
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workbench,
@@ -135,6 +150,13 @@ p,
   display: grid;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+}
+
+.workbench {
+  align-content: start;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .section,
@@ -149,20 +171,23 @@ p,
 }
 
 .side-column {
-  position: sticky;
-  top: 12px;
-  max-height: calc(100vh - 24px);
-  overflow: auto;
+  grid-template-rows: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  overflow: hidden;
   width: 100%;
 }
 
 .queue-panel {
   padding: 14px;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .section-head,
 .queue-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -223,6 +248,12 @@ textarea {
 select,
 input {
   width: 100%;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  min-height: auto;
 }
 
 label {
@@ -408,17 +439,30 @@ button:disabled {
 }
 
 .jobs {
+  flex: 1 1 auto;
   display: grid;
+  align-content: start;
   gap: 9px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .queue-items {
+  flex: 1 1 auto;
   display: grid;
+  align-content: start;
   gap: 9px;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .queue-item {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 11px;
@@ -426,10 +470,32 @@ button:disabled {
   min-width: 0;
 }
 
+.queue-item > *,
+.job > * {
+  position: relative;
+  z-index: 1;
+}
+
+.queue-item.has-thumbnail::before,
+.job.has-thumbnail::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78)),
+    var(--thumb-url);
+  background-position: center;
+  background-size: cover;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
 .queue-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 650;
 }
@@ -446,6 +512,7 @@ button:disabled {
 
 .queue-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   margin-top: 9px;
 }
@@ -464,6 +531,9 @@ button:disabled {
 }
 
 .job {
+  position: relative;
+  overflow: auto;
+  max-height: min(420px, 100%);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 11px;
@@ -482,6 +552,7 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: anywhere;
   font-weight: 650;
   font-size: 13px;
   min-width: 0;
@@ -535,6 +606,7 @@ button:disabled {
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
+  min-width: 0;
 }
 
 .step-list {
@@ -592,6 +664,7 @@ button:disabled {
 
 .job-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   margin-top: 9px;
 }
@@ -621,10 +694,12 @@ button:disabled {
 @media (max-width: 1000px) {
   .layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(260px, 42vh);
   }
 
   .side-column {
-    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
     max-height: none;
   }
 }
@@ -636,14 +711,13 @@ button:disabled {
   }
 
   .app-header,
-  .toolbar,
-  .url-row {
+  .toolbar {
     align-items: stretch;
     flex-direction: column;
   }
 
   .url-row {
-    display: flex;
+    grid-template-columns: 1fr;
   }
 
   .format-grid,
@@ -656,5 +730,10 @@ button:disabled {
   .title-field,
   .output-field {
     grid-column: auto;
+  }
+
+  .side-column {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 }

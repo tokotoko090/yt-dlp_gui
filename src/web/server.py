@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import shutil
 import socket
 import subprocess
+import tempfile
 import threading
+import urllib.request
+import uuid
 import webbrowser
 from dataclasses import asdict
 from http import HTTPStatus
@@ -22,10 +26,13 @@ from src.web.manager import DownloadManager
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+THUMBNAIL_CACHE_DIR = Path(tempfile.gettempdir()) / "YtDlpWebUi" / "thumbnail-cache"
+MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024
 
 
 class WebApp:
     def __init__(self) -> None:
+        _clear_thumbnail_cache()
         self.config_store = ConfigStore()
         self.config = self.config_store.load()
         self.manager = DownloadManager(self.config)
@@ -59,6 +66,9 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
             if parsed.path.startswith("/static/"):
                 self._send_file(_static_dir() / parsed.path.removeprefix("/static/"))
                 return
+            if parsed.path.startswith("/api/thumbnail/"):
+                self._send_thumbnail(parsed.path.removeprefix("/api/thumbnail/"))
+                return
             if parsed.path == "/api/config":
                 self._send_json(_config_payload(app.config))
                 return
@@ -84,7 +94,13 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
                     self._send_error(HTTPStatus.BAD_REQUEST, "URL is required")
                     return
                 try:
-                    result = probe_formats(vendor_path("yt-dlp.exe"), url, str(payload.get("cookies_path") or app.config.cookies_path))
+                    result = probe_formats(
+                        vendor_path("yt-dlp.exe"),
+                        url,
+                        str(payload.get("cookies_path") or app.config.cookies_path),
+                        bool(payload.get("use_browser_cookies")),
+                    )
+                    result.thumbnail_url = _cache_thumbnail(result.thumbnail_url)
                 except Exception as exc:
                     self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                     return
@@ -114,6 +130,14 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
             if parsed.path == "/api/select-output-dir":
                 payload = self._read_json()
                 selected = _select_output_dir(str(payload.get("initial_dir") or app.config.download_dir))
+                if not selected:
+                    self._send_json({"cancelled": True, "path": ""})
+                    return
+                self._send_json({"cancelled": False, "path": selected})
+                return
+            if parsed.path == "/api/select-cookies-file":
+                payload = self._read_json()
+                selected = _select_cookies_file(str(payload.get("initial_path") or app.config.cookies_path))
                 if not selected:
                     self._send_json({"cancelled": True, "path": ""})
                     return
@@ -195,6 +219,26 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_thumbnail(self, name: str) -> None:
+            cache_dir = THUMBNAIL_CACHE_DIR.resolve()
+            try:
+                resolved = (cache_dir / Path(name).name).resolve()
+                resolved.relative_to(cache_dir)
+            except ValueError:
+                self._send_error(HTTPStatus.FORBIDDEN, "forbidden")
+                return
+            if not resolved.exists() or not resolved.is_file():
+                self._send_error(HTTPStatus.NOT_FOUND, "not found")
+                return
+            content_type = mimetypes.guess_type(str(resolved))[0] or "image/jpeg"
+            body = resolved.read_bytes()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
         def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(status)
@@ -226,11 +270,49 @@ def _config_payload(config: AppConfig) -> dict[str, Any]:
 def _probe_payload(result: FormatProbeResult) -> dict[str, Any]:
     return {
         "title": result.title,
+        "thumbnail_url": result.thumbnail_url,
         "extractor_args": result.extractor_args,
         "video_options": [asdict(item) for item in result.video_options],
         "audio_options": [asdict(item) for item in result.audio_options],
         "muxed_options": [asdict(item) for item in result.muxed_options],
     }
+
+
+def _clear_thumbnail_cache() -> None:
+    if THUMBNAIL_CACHE_DIR.exists():
+        shutil.rmtree(THUMBNAIL_CACHE_DIR, ignore_errors=True)
+    THUMBNAIL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _cache_thumbnail(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return ""
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(request, timeout=8) as response:
+            content_type = response.headers.get("Content-Type", "")
+            data = response.read(MAX_THUMBNAIL_BYTES + 1)
+    except Exception:
+        return ""
+    if not data or len(data) > MAX_THUMBNAIL_BYTES:
+        return ""
+    suffix = _thumbnail_suffix(parsed.path, content_type)
+    name = f"{uuid.uuid4().hex}{suffix}"
+    path = THUMBNAIL_CACHE_DIR / name
+    try:
+        path.write_bytes(data)
+    except OSError:
+        return ""
+    return f"/api/thumbnail/{name}"
+
+
+def _thumbnail_suffix(path: str, content_type: str) -> str:
+    suffix = Path(urlparse(path).path).suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        return suffix
+    guessed = mimetypes.guess_extension(content_type.split(";", 1)[0].strip())
+    return guessed if guessed in {".jpg", ".jpeg", ".png", ".webp", ".gif"} else ".jpg"
 
 
 def _pick_port(host: str, port: int) -> int:
@@ -284,6 +366,33 @@ def _select_output_dir(initial_dir: str) -> str:
             initialdir=initial_dir if Path(initial_dir).exists() else str(Path.home()),
             title="保存先フォルダを選択",
             mustexist=True,
+            parent=root,
+        )
+    finally:
+        root.destroy()
+    return selected or ""
+
+
+def _select_cookies_file(initial_path: str) -> str:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception:
+        return ""
+
+    initial = Path(initial_path)
+    initial_dir = initial.parent if initial_path and initial.parent.exists() else Path.home()
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        selected = filedialog.askopenfilename(
+            initialdir=str(initial_dir),
+            title="Cookieファイルを選択",
+            filetypes=[
+                ("Cookie files", "*.txt *.cookies"),
+                ("All files", "*.*"),
+            ],
             parent=root,
         )
     finally:

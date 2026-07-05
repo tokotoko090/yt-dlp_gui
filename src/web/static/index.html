@@ -33,6 +33,7 @@
             </div>
             <div class="url-row">
               <input id="urlInput" type="text" spellcheck="false" placeholder="https://youtu.be/...">
+              <button id="clearUrlButton" class="secondary" type="button" disabled>クリア</button>
               <button id="fetchFormatsButton" class="primary" type="button">形式取得</button>
             </div>
           </section>
@@ -116,10 +117,15 @@
                 <h3>オプション</h3>
                 <div class="field">
                   <label for="cookiesPath">Cookieの読み込み</label>
-                  <input id="cookiesPath" type="text" placeholder="必要な場合のみ">
+                  <div class="input-action">
+                    <input id="cookiesPath" type="text" placeholder="必要な場合のみ">
+                    <button id="selectCookiesFile" class="secondary" type="button">Cookie選択</button>
+                  </div>
                 </div>
 
                 <div class="option-row">
+                  <label><input id="artistMetadata" type="checkbox" checked> アーティスト名をメタデータに含める</label>
+                  <label><input id="browserCookies" type="checkbox" checked> Chrome Profile 2のCookieを使う</label>
                   <label><input id="metadata" type="checkbox"> サムネイル埋め込み</label>
                   <label><input id="thumbnail" type="checkbox"> サムネイル保存</label>
                   <label><input id="subtitles" type="checkbox"> 字幕の保存</label>

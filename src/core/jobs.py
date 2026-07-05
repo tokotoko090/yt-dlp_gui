@@ -48,6 +48,8 @@ class DownloadJob:
     metadata: bool
     cookies_path: str
     retry_count: int
+    artist_metadata: bool = True
+    use_browser_cookies: bool = False
     video_encoder: str = "auto"
     selected_format: SelectedFormat | None = None
     extractor_args: str = ""

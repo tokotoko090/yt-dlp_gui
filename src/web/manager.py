@@ -34,6 +34,7 @@ class ManagedJob:
     failed_step: str = ""
     video_format_id: str = ""
     audio_format_id: str = ""
+    thumbnail_url: str = ""
     created_at: float = field(default_factory=time.time)
     started_at: float | None = None
     finished_at: float | None = None
@@ -114,6 +115,7 @@ class DownloadManager:
             steps=list(payload.get("steps") or _default_steps(payload)),
             video_format_id=str(selected.get("video_format_id") or ""),
             audio_format_id=str(selected.get("audio_format_id") or ""),
+            thumbnail_url=str(payload.get("thumbnail_url") or ""),
         )
         with self._lock:
             self._jobs[job.id] = job
@@ -158,6 +160,8 @@ class DownloadManager:
             metadata=bool(payload.get("metadata")),
             cookies_path=str(payload.get("cookies_path") or self.config.cookies_path),
             retry_count=int(payload.get("retry_count") or self.config.retry_count),
+            artist_metadata=bool(payload.get("artist_metadata", True)),
+            use_browser_cookies=bool(payload.get("use_browser_cookies")),
             selected_format=selected_format,
             extractor_args=str(payload.get("extractor_args") or ""),
         )
@@ -217,11 +221,15 @@ def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
 
 def _default_steps(payload: dict[str, Any]) -> list[str]:
     if str(payload.get("mode") or "video") == "audio":
-        return ["音声ダウンロード", "音声変換", "メタデータ埋め込み"]
+        steps = ["音声ダウンロード", "音声変換"]
+        if payload.get("artist_metadata", True):
+            steps.append("メタデータ埋め込み")
+        return steps
     selected = payload.get("selected_format") or {}
     steps = ["映像ダウンロード", "音声ダウンロード"]
     steps.append("mp4変換" if selected.get("needs_recode") else "結合")
-    steps.append("メタデータ埋め込み")
+    if payload.get("artist_metadata", True):
+        steps.append("メタデータ埋め込み")
     if payload.get("thumbnail") or payload.get("metadata"):
         steps.append("サムネイル処理")
     if payload.get("subtitles"):

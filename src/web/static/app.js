@@ -73,6 +73,7 @@ async function fetchFormats() {
   } finally {
     $("urlInput").disabled = false;
     $("fetchFormatsButton").disabled = false;
+    syncClearUrlButton();
     syncMode();
   }
 }
@@ -80,7 +81,11 @@ async function fetchFormats() {
 async function probeUrl(url) {
   return api("/api/probe", {
     method: "POST",
-    body: JSON.stringify({ url, cookies_path: $("cookiesPath").value }),
+    body: JSON.stringify({
+      url,
+      cookies_path: $("cookiesPath").value,
+      use_browser_cookies: $("browserCookies").checked,
+    }),
   });
 }
 
@@ -101,11 +106,13 @@ function addToQueue() {
     url,
     mode: payload.mode,
     container: payload.container,
+    thumbnail_url: payload.thumbnail_url,
     payload,
     started: false,
   };
   state.queue.push(queueItem);
   renderQueue();
+  clearUrlWorkflow();
   setProbeState("キューに追加しました。");
 }
 
@@ -123,6 +130,8 @@ async function startQueuedItem(id) {
       body: JSON.stringify(item.payload),
     });
     state.selectedJobId = data.jobs[0]?.id || state.selectedJobId;
+    state.queue = state.queue.filter((entry) => entry.id !== id);
+    renderQueue();
     await refreshJobs();
   } catch (error) {
     item.started = false;
@@ -142,6 +151,7 @@ async function startAllQueued() {
   });
   renderQueue();
   try {
+    const pendingIds = new Set(pending.map((item) => item.id));
     const data = await api("/api/download-batch", {
       method: "POST",
       body: JSON.stringify({
@@ -150,6 +160,8 @@ async function startAllQueued() {
       }),
     });
     state.selectedJobId = data.jobs[0]?.id || state.selectedJobId;
+    state.queue = state.queue.filter((entry) => !pendingIds.has(entry.id));
+    renderQueue();
     await refreshJobs();
   } catch (error) {
     pending.forEach((item) => {
@@ -176,6 +188,7 @@ function renderQueue() {
   state.queue.forEach((item) => {
     const el = document.createElement("article");
     el.className = "queue-item";
+    applyCardThumbnail(el, item.thumbnail_url);
     el.innerHTML = `
       <div class="queue-title" title="${escapeHtml(item.url)}">${escapeHtml(item.title)}</div>
       <div class="queue-meta">
@@ -209,9 +222,12 @@ function currentPayload(url, probe) {
     video_encoder: "auto",
     parallel: Number($("parallel").value || 2),
     cookies_path: $("cookiesPath").value,
+    use_browser_cookies: $("browserCookies").checked,
     playlist: false,
+    artist_metadata: $("artistMetadata").checked,
     metadata: $("metadata").checked,
     thumbnail: $("thumbnail").checked,
+    thumbnail_url: probe.thumbnail_url || "",
     subtitles: $("subtitles").checked,
     selected_format: selected,
     extractor_args: probe.extractor_args || "",
@@ -282,7 +298,11 @@ function resetProbeResult() {
 
 function buildSteps(mode, selected) {
   if (mode === "audio") {
-    return ["音声ダウンロード", "音声変換", "メタデータ埋め込み"];
+    const steps = ["音声ダウンロード", "音声変換"];
+    if ($("artistMetadata").checked) {
+      steps.push("メタデータ埋め込み");
+    }
+    return steps;
   }
   const steps = ["映像ダウンロード", "音声ダウンロード"];
   if (selected?.needs_recode) {
@@ -290,7 +310,9 @@ function buildSteps(mode, selected) {
   } else {
     steps.push("結合");
   }
-  steps.push("メタデータ埋め込み");
+  if ($("artistMetadata").checked) {
+    steps.push("メタデータ埋め込み");
+  }
   if ($("thumbnail").checked || $("metadata").checked) {
     steps.push("サムネイル処理");
   }
@@ -304,6 +326,16 @@ function inputUrl() {
   return $("urlInput").value.trim();
 }
 
+function clearUrlWorkflow() {
+  $("urlInput").value = "";
+  resetProbeResult();
+  syncClearUrlButton();
+}
+
+function syncClearUrlButton() {
+  $("clearUrlButton").disabled = !$("urlInput").value;
+}
+
 async function selectOutputDir() {
   const button = $("selectOutputDir");
   button.disabled = true;
@@ -314,6 +346,25 @@ async function selectOutputDir() {
     });
     if (!data.cancelled && data.path) {
       $("outputDir").value = data.path;
+    }
+  } catch (error) {
+    setProbeState(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function selectCookiesFile() {
+  const button = $("selectCookiesFile");
+  button.disabled = true;
+  try {
+    const data = await api("/api/select-cookies-file", {
+      method: "POST",
+      body: JSON.stringify({ initial_path: $("cookiesPath").value }),
+    });
+    if (!data.cancelled && data.path) {
+      $("cookiesPath").value = data.path;
+      $("browserCookies").checked = false;
     }
   } catch (error) {
     setProbeState(error.message);
@@ -469,6 +520,7 @@ function createJobNode(job) {
 
 function updateJobNode(nodes, job) {
   const percent = job.percent == null ? 0 : Math.max(0, Math.min(100, job.percent));
+  applyCardThumbnail(nodes.root, job.thumbnail_url);
   setText(nodes.url, job.title || job.url);
   nodes.url.title = job.url;
   setText(nodes.status, job.status);
@@ -581,6 +633,20 @@ function setText(node, value) {
   if (node.textContent !== text) node.textContent = text;
 }
 
+function applyCardThumbnail(node, thumbnailUrl) {
+  if (!thumbnailUrl) {
+    node.classList.remove("has-thumbnail");
+    node.style.removeProperty("--thumb-url");
+    return;
+  }
+  node.classList.add("has-thumbnail");
+  node.style.setProperty("--thumb-url", `url("${cssUrl(thumbnailUrl)}")`);
+}
+
+function cssUrl(value) {
+  return String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -590,16 +656,22 @@ function escapeHtml(value) {
 }
 
 $("fetchFormatsButton").addEventListener("click", fetchFormats);
+$("clearUrlButton").addEventListener("click", () => {
+  clearUrlWorkflow();
+  setProbeState("URLをクリアしました。");
+});
 $("addQueueButton").addEventListener("click", addToQueue);
 $("startAllButton").addEventListener("click", startAllQueued);
 $("shutdownButton").addEventListener("click", () => shutdownApp(false));
 $("selectOutputDir").addEventListener("click", selectOutputDir);
+$("selectCookiesFile").addEventListener("click", selectCookiesFile);
 $("refreshJobs").addEventListener("click", refreshJobs);
 $("updateYtDlp").addEventListener("click", updateYtDlp);
 document.querySelectorAll('input[name="modeSelect"]').forEach((input) => {
   input.addEventListener("change", syncMode);
 });
 $("urlInput").addEventListener("input", () => {
+  syncClearUrlButton();
   if (inputUrl() !== state.currentProbeUrl) {
     resetProbeResult();
   }
@@ -621,6 +693,7 @@ $("urlInput").addEventListener("keydown", (event) => {
   }
 });
 
+syncClearUrlButton();
 renderQueue();
 loadConfig().then(refreshJobs).catch((error) => {
   $("appRoot").textContent = error.message;

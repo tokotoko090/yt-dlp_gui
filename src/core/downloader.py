@@ -147,6 +147,12 @@ class DownloadProcess:
 
 
 def _parse_progress(line: str) -> ProgressEvent:
+    if "Could not copy Chrome cookie database" in line:
+        return ProgressEvent(
+            status="Chrome Cookieを読み込めません",
+            line="Chrome Cookieの直接読み込みに失敗しました。Chromeを閉じて再試行するか、Cookieファイルを指定してください。",
+            indeterminate=True,
+        )
     match = PROGRESS_RE.search(line)
     if not match:
         for marker, status in POSTPROCESS_STATUS.items():
@@ -182,4 +188,3 @@ def _match_group(pattern: re.Pattern[str], line: str, group: str) -> str:
     if not match:
         return ""
     return match.group(group) or ""
-

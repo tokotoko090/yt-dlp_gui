@@ -41,8 +41,37 @@ def test_video_mp4_h264_command() -> None:
     assert "node" in cmd
     assert "%(title).200B.%(ext)s" in cmd
     assert "%(title).200B [%(id)s].%(ext)s" not in cmd
+    assert "--embed-metadata" in cmd
     assert "--parse-metadata" in cmd
     assert "%(uploader)s:%(meta_artist)s" in cmd
+
+
+def test_video_artist_metadata_embeds_artist_without_year_or_genre() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(),
+    )
+    joined = " ".join(cmd)
+
+    assert "--embed-metadata" in cmd
+    assert "--parse-metadata" in cmd
+    assert "%(uploader)s:%(meta_artist)s" in cmd
+    assert "--metadata" not in cmd
+    assert "Metadata+ffmpeg_o:-metadata date= -metadata genre=" in cmd
+    assert "%(release_year)" not in joined
+    assert "%(genre)" not in joined
+
+
+def test_artist_metadata_can_be_disabled() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(artist_metadata=False),
+    )
+
+    assert "--embed-metadata" not in cmd
+    assert "--parse-metadata" not in cmd
 
 
 def test_audio_mp3_command_uses_bestaudio_fallback() -> None:
@@ -80,6 +109,30 @@ def test_cookies_and_playlist_command() -> None:
     assert "--cookies" in cmd
     assert "C:/cookies.txt" in cmd
     assert "--no-playlist" not in cmd
+
+
+def test_browser_cookies_are_used_when_cookie_file_is_empty() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(use_browser_cookies=True),
+    )
+
+    assert "--cookies-from-browser" in cmd
+    assert "chrome:Profile 2" in cmd
+    assert "--cookies" not in cmd
+
+
+def test_cookie_file_takes_priority_over_browser_cookies() -> None:
+    cmd = build_ytdlp_command(
+        Path("vendor/yt-dlp.exe"),
+        Path("vendor/ffmpeg.exe"),
+        make_job(cookies_path="C:/cookies.txt", use_browser_cookies=True),
+    )
+
+    assert "--cookies" in cmd
+    assert "C:/cookies.txt" in cmd
+    assert "--cookies-from-browser" not in cmd
 
 
 def test_video_quality_limit_command() -> None:

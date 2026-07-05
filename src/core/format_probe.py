@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.core.cookies import CHROME_COOKIE_SOURCE
 from src.core.jobs import FormatOption
 
 
@@ -15,17 +16,18 @@ class FormatProbeResult:
     video_options: list[FormatOption]
     audio_options: list[FormatOption]
     muxed_options: list[FormatOption]
+    thumbnail_url: str = ""
     extractor_args: str = ""
 
 
-def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "") -> FormatProbeResult:
-    default_data = _probe_format_data(ytdlp_path, url, cookies_path)
+def probe_formats(ytdlp_path: Path, url: str, cookies_path: str = "", use_browser_cookies: bool = False) -> FormatProbeResult:
+    default_data = _probe_format_data(ytdlp_path, url, cookies_path, use_browser_cookies=use_browser_cookies)
     default_result = parse_format_data(default_data)
     if not _is_youtube_url(url) or _has_rich_video_formats(default_result):
         return default_result
 
     enhanced_args = "youtube:player_client=all"
-    enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args)
+    enhanced_data = _probe_format_data(ytdlp_path, url, cookies_path, enhanced_args, use_browser_cookies=use_browser_cookies)
     enhanced_result = parse_format_data(enhanced_data)
     enhanced_result.extractor_args = enhanced_args
     return _better_result(default_result, enhanced_result)
@@ -36,10 +38,13 @@ def _probe_format_data(
     url: str,
     cookies_path: str = "",
     extractor_args: str = "",
+    use_browser_cookies: bool = False,
 ) -> dict[str, Any]:
     cmd = [str(ytdlp_path), "--js-runtimes", "node", "-J", "--no-playlist", url]
     if cookies_path:
         cmd[1:1] = ["--cookies", cookies_path]
+    elif use_browser_cookies:
+        cmd[1:1] = ["--cookies-from-browser", CHROME_COOKIE_SOURCE]
     if extractor_args:
         cmd[1:1] = ["--extractor-args", extractor_args]
     completed = subprocess.run(
@@ -110,7 +115,21 @@ def parse_format_data(data: dict[str, Any]) -> FormatProbeResult:
         video_options=video_options,
         audio_options=audio_options,
         muxed_options=muxed_options,
+        thumbnail_url=_thumbnail_url(data),
     )
+
+
+def _thumbnail_url(data: dict[str, Any]) -> str:
+    thumbnail = str(data.get("thumbnail") or "")
+    if thumbnail:
+        return thumbnail
+    thumbnails = data.get("thumbnails") or []
+    if not isinstance(thumbnails, list):
+        return ""
+    for item in reversed(thumbnails):
+        if isinstance(item, dict) and item.get("url"):
+            return str(item["url"])
+    return ""
 
 
 def _format_option(fmt: dict[str, Any]) -> FormatOption | None:

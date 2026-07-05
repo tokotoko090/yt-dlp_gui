@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.core.cookies import CHROME_COOKIE_SOURCE
 from src.core.jobs import DownloadJob
 
 
@@ -27,9 +28,6 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
         job.output_dir,
         "-o",
         _output_template(job),
-        "--embed-metadata",
-        "--parse-metadata",
-        "%(uploader)s:%(meta_artist)s",
     ]
 
     extractor_args = job.extractor_args
@@ -43,6 +41,8 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
 
     if job.cookies_path:
         args.extend(["--cookies", job.cookies_path])
+    elif job.use_browser_cookies:
+        args.extend(["--cookies-from-browser", CHROME_COOKIE_SOURCE])
 
     if job.subtitles and job.mode == "video":
         args.extend(["--write-subs", "--write-auto-subs", "--sub-langs", "ja,en.*"])
@@ -50,7 +50,16 @@ def build_ytdlp_command(ytdlp_path: Path, ffmpeg_path: Path, job: DownloadJob) -
     if job.thumbnail and job.mode == "video":
         args.append("--write-thumbnail")
 
-    if job.metadata and job.mode == "video" and (ffmpeg_path.parent / "ffprobe.exe").exists():
+    if job.artist_metadata:
+        args.extend([
+            "--embed-metadata",
+            "--parse-metadata",
+            "%(uploader)s:%(meta_artist)s",
+            "--postprocessor-args",
+            "Metadata+ffmpeg_o:-metadata date= -metadata genre=",
+        ])
+
+    if job.metadata and job.mode == "video":
         args.append("--embed-thumbnail")
 
     if job.mode == "audio":

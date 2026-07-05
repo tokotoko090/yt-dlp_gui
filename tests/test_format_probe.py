@@ -1,3 +1,8 @@
+import json
+import subprocess
+from pathlib import Path
+
+from src.core import format_probe
 from src.core.format_probe import parse_format_data
 
 
@@ -89,3 +94,45 @@ def test_rich_video_formats_are_sorted_above_360p_muxed() -> None:
     assert result.video_options[0].format_id == "399"
     assert result.audio_options[0].format_id == "140"
     assert result.muxed_options[0].format_id == "18"
+
+
+def test_parse_thumbnail_url_from_top_level_thumbnail() -> None:
+    result = parse_format_data({
+        "title": "sample",
+        "thumbnail": "https://img.example/thumb.jpg",
+        "formats": [],
+    })
+
+    assert result.thumbnail_url == "https://img.example/thumb.jpg"
+
+
+def test_parse_thumbnail_url_from_thumbnail_list() -> None:
+    result = parse_format_data({
+        "title": "sample",
+        "thumbnails": [
+            {"url": "https://img.example/small.jpg"},
+            {"url": "https://img.example/large.webp"},
+        ],
+        "formats": [],
+    })
+
+    assert result.thumbnail_url == "https://img.example/large.webp"
+
+
+def test_probe_format_data_can_use_chrome_browser_cookies(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"formats": []}), stderr="")
+
+    monkeypatch.setattr(format_probe.subprocess, "run", fake_run)
+
+    format_probe._probe_format_data(
+        Path("vendor/yt-dlp.exe"),
+        "https://youtu.be/example",
+        use_browser_cookies=True,
+    )
+
+    assert "--cookies-from-browser" in captured["cmd"]
+    assert "chrome:Profile 2" in captured["cmd"]
