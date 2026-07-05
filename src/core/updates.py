@@ -212,13 +212,14 @@ def prepare_app_update(fetch_json: JsonHook | None = None, download: DownloadHoo
 
 def launch_app_update_helper(helper_path: str, zip_path: str) -> subprocess.Popen[bytes]:
     exe_name = Path(sys.executable).name if getattr(sys, "frozen", False) else ""
+    helper = Path(helper_path)
     args = [
         "powershell.exe",
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        helper_path,
+        str(helper),
         "-InstallDir",
         str(_install_dir()),
         "-ZipPath",
@@ -228,7 +229,13 @@ def launch_app_update_helper(helper_path: str, zip_path: str) -> subprocess.Pope
     ]
     if exe_name:
         args.extend(["-ExeName", exe_name])
-    return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creation_flags())
+    return subprocess.Popen(
+        args,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creation_flags(),
+        cwd=str(helper.parent),
+    )
 
 
 def _run_version(executable: Path, args: list[str]) -> tuple[bool, str]:
@@ -328,17 +335,46 @@ $name = Split-Path -Leaf $install
 $stamp = Get-Date -Format "yyyyMMddHHmmss"
 $backup = Join-Path $parent "$name.backup.$stamp"
 $extract = Join-Path ([System.IO.Path]::GetTempPath()) "YtDlpWebUi-extract-$stamp"
+$log = Join-Path ([System.IO.Path]::GetTempPath()) "YtDlpWebUi-update-error.log"
+function Invoke-WithRetry {
+    param(
+        [Parameter(Mandatory=$true)][scriptblock]$Action,
+        [int]$Attempts = 20,
+        [int]$DelayMilliseconds = 500
+    )
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            & $Action
+            return
+        } catch {
+            if ($attempt -eq $Attempts) {
+                throw
+            }
+            Start-Sleep -Milliseconds $DelayMilliseconds
+        }
+    }
+}
 try {
-    Wait-Process -Id $CurrentPid -Timeout 30 -ErrorAction SilentlyContinue
+    try {
+        Wait-Process -Id $CurrentPid -Timeout 120 -ErrorAction Stop
+    } catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
+        throw
+    } catch {
+        throw "Current application process did not exit in time. Close yt-dlp Web UI and run the downloaded app again. Details: $($_.Exception.Message)"
+    }
     Expand-Archive -LiteralPath $ZipPath -DestinationPath $extract -Force
     $source = $extract
     $children = Get-ChildItem -LiteralPath $extract
     if ($children.Count -eq 1 -and $children[0].PSIsContainer) {
         $source = $children[0].FullName
     }
-    Rename-Item -LiteralPath $install -NewName (Split-Path -Leaf $backup)
+    Invoke-WithRetry -Action {
+        Rename-Item -LiteralPath $install -NewName (Split-Path -Leaf $backup) -ErrorAction Stop
+    }
     New-Item -ItemType Directory -Force -Path $install | Out-Null
-    Copy-Item -LiteralPath (Join-Path $source '*') -Destination $install -Recurse -Force
+    Invoke-WithRetry -Action {
+        Copy-Item -LiteralPath (Join-Path $source '*') -Destination $install -Recurse -Force -ErrorAction Stop
+    }
     if ($ExeName) {
         $exe = Join-Path $install $ExeName
         if (Test-Path -LiteralPath $exe) {
@@ -349,7 +385,6 @@ try {
     if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $install)) {
         Rename-Item -LiteralPath $backup -NewName $name
     }
-    $log = Join-Path ([System.IO.Path]::GetTempPath()) "YtDlpWebUi-update-error.log"
     $_ | Out-String | Set-Content -LiteralPath $log -Encoding UTF8
     throw
 } finally {

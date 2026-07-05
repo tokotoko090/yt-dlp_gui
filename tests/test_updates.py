@@ -117,3 +117,46 @@ def test_prepare_app_update_downloads_portable_zip(monkeypatch, tmp_path) -> Non
     assert result.after_version == "0.2.0"
     assert result.lines and result.lines[0].endswith("apply-update.ps1")
     assert result.lines[1].endswith(updates.PORTABLE_ZIP_ASSET)
+
+
+def test_launch_app_update_helper_uses_stage_working_directory(monkeypatch, tmp_path) -> None:
+    helper = tmp_path / "stage" / "apply-update.ps1"
+    helper.parent.mkdir()
+    helper.write_text("# helper", encoding="utf-8")
+    zip_path = tmp_path / "stage" / updates.PORTABLE_ZIP_ASSET
+    zip_path.write_bytes(b"zip")
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    captured = {}
+
+    monkeypatch.setattr(updates, "_install_dir", lambda: app_dir)
+    monkeypatch.setattr(updates, "creation_flags", lambda: 0)
+    monkeypatch.setattr(updates.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(updates.sys, "executable", str(app_dir / "yt-dlp-webUI.exe"))
+    monkeypatch.setattr(updates.os, "getpid", lambda: 1234)
+
+    class DummyProcess:
+        pass
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return DummyProcess()
+
+    monkeypatch.setattr(updates.subprocess, "Popen", fake_popen)
+
+    process = updates.launch_app_update_helper(str(helper), str(zip_path))
+
+    assert isinstance(process, DummyProcess)
+    assert captured["kwargs"]["cwd"] == str(helper.parent)
+    assert str(helper) in captured["args"]
+    assert str(app_dir) in captured["args"]
+
+
+def test_helper_script_retries_install_directory_replacement() -> None:
+    script = updates._helper_script()
+
+    assert "function Invoke-WithRetry" in script
+    assert "Rename-Item -LiteralPath $install" in script
+    assert "Copy-Item -LiteralPath (Join-Path $source '*')" in script
+    assert "YtDlpWebUi-update-error.log" in script

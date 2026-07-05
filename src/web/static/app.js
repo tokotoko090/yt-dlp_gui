@@ -791,7 +791,7 @@ async function runUpdate(endpoint, buttonId) {
     const data = await api(endpoint, { method: "POST", body: "{}" });
     $("updateSummary").textContent = data.message || "更新処理が完了しました。";
     if (data.shutdown) {
-      document.body.innerHTML = '<main class="shell"><section class="section"><h1>更新を適用しています</h1><p>アプリが自動的に再起動するまでお待ちください。</p></section></main>';
+      document.body.innerHTML = '<main class="shell"><section class="section"><h1>更新を適用しています</h1><p>アプリが自動的に再起動するまでお待ちください。</p><p>1分以上変わらない場合は、このタブを閉じて展開先の yt-dlp-webUI.exe を起動し直してください。失敗ログは一時フォルダの YtDlpWebUi-update-error.log に出力されます。</p></section></main>';
       return;
     }
     await loadUpdates(true);
