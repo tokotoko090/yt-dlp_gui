@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --bg: #f4f6f8;
   --surface: #ffffff;
@@ -134,6 +134,65 @@ p,
   font-size: 13px;
 }
 
+
+.update-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.update-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.update-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.update-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-soft);
+  min-width: 0;
+}
+
+.update-card.available {
+  border-color: #9cc7e7;
+  background: #f0f7fc;
+}
+
+.update-card.missing {
+  border-color: #e8d393;
+  background: #fff8e1;
+}
+
+.update-card h3 {
+  margin: 0 0 5px;
+}
+
+.update-card p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-version {
+  margin-top: 3px;
+  font-size: 12px;
+}
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
@@ -692,7 +751,66 @@ button:disabled {
 }
 
 @media (max-width: 1000px) {
-  .layout {
+  
+.update-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.update-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.update-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.update-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-soft);
+  min-width: 0;
+}
+
+.update-card.available {
+  border-color: #9cc7e7;
+  background: #f0f7fc;
+}
+
+.update-card.missing {
+  border-color: #e8d393;
+  background: #fff8e1;
+}
+
+.update-card h3 {
+  margin: 0 0 5px;
+}
+
+.update-card p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-version {
+  margin-top: 3px;
+  font-size: 12px;
+}
+.layout {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(260px, 42vh);
   }
@@ -737,3 +855,4 @@ button:disabled {
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
+

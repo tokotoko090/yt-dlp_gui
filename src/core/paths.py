@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 from pathlib import Path
@@ -23,3 +23,21 @@ def user_data_dir() -> Path:
         path = Path.home() / f".{APP_NAME.lower()}"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def tools_dir() -> Path:
+    path = user_data_dir() / "bin"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def tool_path(filename: str) -> Path:
+    return tools_dir() / filename
+
+
+def ytdlp_path() -> Path:
+    return tool_path("yt-dlp.exe")
+
+
+def ffmpeg_path() -> Path:
+    return tool_path("ffmpeg.exe")

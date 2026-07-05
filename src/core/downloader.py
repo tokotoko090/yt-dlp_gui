@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import subprocess
@@ -7,7 +7,7 @@ from typing import Callable
 
 from src.core.command_builder import build_ytdlp_command
 from src.core.jobs import DownloadJob, ProgressEvent
-from src.core.paths import vendor_path
+from src.core.paths import ffmpeg_path, ytdlp_path
 
 
 ProgressCallback = Callable[[ProgressEvent], None]
@@ -34,8 +34,8 @@ class DownloadProcess:
         self._process: subprocess.Popen[str] | None = None
 
     def run(self) -> tuple[bool, str]:
-        ytdlp = vendor_path("yt-dlp.exe")
-        ffmpeg = vendor_path("ffmpeg.exe")
+        ytdlp = ytdlp_path()
+        ffmpeg = ffmpeg_path()
         if not ytdlp.exists():
             return False, f"yt-dlp.exe が見つかりません: {ytdlp}"
         if not ffmpeg.exists():
@@ -188,3 +188,4 @@ def _match_group(pattern: re.Pattern[str], line: str, group: str) -> str:
     if not match:
         return ""
     return match.group(group) or ""
+

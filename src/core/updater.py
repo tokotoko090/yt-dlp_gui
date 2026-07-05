@@ -1,11 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-from src.core.paths import vendor_path
+from src.core.updates import get_ytdlp_version as _get_ytdlp_version
+from src.core.updates import install_or_update_ytdlp
+from src.core.updates import ytdlp_path
 
 
 LineCallback = Callable[[str], None]
@@ -24,30 +25,8 @@ class YtDlpUpdateResult:
         return asdict(self)
 
 
-def _creation_flags() -> int:
-    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-
 def get_ytdlp_version(ytdlp: Path | None = None) -> tuple[bool, str]:
-    executable = ytdlp or vendor_path("yt-dlp.exe")
-    if not executable.exists():
-        return False, f"yt-dlp.exe が見つかりません: {executable}"
-    try:
-        result = subprocess.run(
-            [str(executable), "--version"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=_creation_flags(),
-            check=False,
-        )
-    except OSError as exc:
-        return False, str(exc)
-    version = result.stdout.strip() or result.stderr.strip()
-    if result.returncode != 0:
-        return False, version or f"yt-dlp version check failed: {result.returncode}"
-    return True, version
+    return _get_ytdlp_version(ytdlp or ytdlp_path())
 
 
 def check_ytdlp_version(ytdlp: Path | None = None) -> tuple[bool, str]:
@@ -58,83 +37,26 @@ def check_ytdlp_version(ytdlp: Path | None = None) -> tuple[bool, str]:
 
 
 def update_ytdlp_stable(ytdlp: Path | None = None, on_line: LineCallback | None = None) -> tuple[bool, str]:
-    executable = ytdlp or vendor_path("yt-dlp.exe")
-    if not executable.exists():
-        return False, f"yt-dlp.exe が見つかりません: {executable}"
-    try:
-        process = subprocess.Popen(
-            [str(executable), "--update-to", "stable"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=_creation_flags(),
-        )
-        assert process.stdout is not None
-        for output in process.stdout:
-            line = output.strip()
-            if line and on_line:
-                on_line(line)
-        code = process.wait()
-    except OSError as exc:
-        return False, str(exc)
-    if code == 0:
-        return True, "yt-dlp の更新が完了しました。"
-    return False, f"更新に失敗しました。終了コード: {code}"
+    result = install_or_update_ytdlp()
+    if on_line:
+        for line in result.lines or []:
+            on_line(line)
+    return result.ok, result.message
 
 
 def update_ytdlp_with_versions(ytdlp: Path | None = None) -> YtDlpUpdateResult:
-    lines: list[str] = []
-    before_ok, before_version = get_ytdlp_version(ytdlp)
-    if not before_ok:
-        return YtDlpUpdateResult(
-            ok=False,
-            status="failed",
-            before_version="",
-            after_version="",
-            message=f"更新前のバージョン確認に失敗しました: {before_version}",
-            lines=lines,
-        )
-
-    update_ok, update_message = update_ytdlp_stable(ytdlp, on_line=lines.append)
-    if not update_ok:
-        return YtDlpUpdateResult(
-            ok=False,
-            status="failed",
-            before_version=before_version,
-            after_version="",
-            message=update_message,
-            lines=lines,
-        )
-
-    after_ok, after_version = get_ytdlp_version(ytdlp)
-    if not after_ok:
-        return YtDlpUpdateResult(
-            ok=False,
-            status="failed",
-            before_version=before_version,
-            after_version="",
-            message=f"更新後のバージョン確認に失敗しました: {after_version}",
-            lines=lines,
-        )
-
-    if before_version == after_version:
-        return YtDlpUpdateResult(
-            ok=True,
-            status="current",
-            before_version=before_version,
-            after_version=after_version,
-            message="最新版です。",
-            lines=lines,
-        )
+    if ytdlp is not None:
+        before_ok, before_version = get_ytdlp_version(ytdlp)
+        if not before_ok:
+            return YtDlpUpdateResult(False, "failed", "", "", f"更新前のバージョン確認に失敗しました: {before_version}", [])
+    result = install_or_update_ytdlp()
     return YtDlpUpdateResult(
-        ok=True,
-        status="updated",
-        before_version=before_version,
-        after_version=after_version,
-        message="更新しました。",
-        lines=lines,
+        ok=result.ok,
+        status=result.status,
+        before_version=result.before_version,
+        after_version=result.after_version,
+        message=result.message,
+        lines=result.lines or [],
     )
 
 

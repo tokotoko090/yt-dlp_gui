@@ -1,46 +1,51 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from src.core import updater
+from src.core.updates import UpdateActionResult
 
 
 def test_update_with_versions_reports_current(monkeypatch) -> None:
-    versions = iter([(True, "2026.06.01"), (True, "2026.06.01")])
+    monkeypatch.setattr(
+        updater,
+        "install_or_update_ytdlp",
+        lambda: UpdateActionResult(True, "current", "2026.06.01", "2026.06.01", "yt-dlp は最新版です。", "yt-dlp.exe"),
+    )
 
-    monkeypatch.setattr(updater, "get_ytdlp_version", lambda ytdlp=None: next(versions))
-    monkeypatch.setattr(updater, "update_ytdlp_stable", lambda ytdlp=None, on_line=None: (True, "ok"))
-
-    result = updater.update_ytdlp_with_versions(Path("yt-dlp.exe"))
+    result = updater.update_ytdlp_with_versions()
 
     assert result.ok
     assert result.status == "current"
     assert result.before_version == "2026.06.01"
     assert result.after_version == "2026.06.01"
-    assert result.message == "最新版です。"
 
 
 def test_update_with_versions_reports_updated(monkeypatch) -> None:
-    versions = iter([(True, "2026.06.01"), (True, "2026.06.20")])
+    monkeypatch.setattr(
+        updater,
+        "install_or_update_ytdlp",
+        lambda: UpdateActionResult(True, "updated", "2026.06.01", "2026.06.20", "yt-dlp を更新しました。", "yt-dlp.exe"),
+    )
 
-    monkeypatch.setattr(updater, "get_ytdlp_version", lambda ytdlp=None: next(versions))
-    monkeypatch.setattr(updater, "update_ytdlp_stable", lambda ytdlp=None, on_line=None: (True, "ok"))
-
-    result = updater.update_ytdlp_with_versions(Path("yt-dlp.exe"))
+    result = updater.update_ytdlp_with_versions()
 
     assert result.ok
     assert result.status == "updated"
     assert result.before_version == "2026.06.01"
     assert result.after_version == "2026.06.20"
-    assert result.message == "更新しました。"
 
 
 def test_update_with_versions_reports_failure(monkeypatch) -> None:
-    monkeypatch.setattr(updater, "get_ytdlp_version", lambda ytdlp=None: (True, "2026.06.01"))
-    monkeypatch.setattr(updater, "update_ytdlp_stable", lambda ytdlp=None, on_line=None: (False, "update failed"))
+    monkeypatch.setattr(
+        updater,
+        "install_or_update_ytdlp",
+        lambda: UpdateActionResult(False, "failed", "2026.06.01", "", "update failed", "yt-dlp.exe"),
+    )
 
-    result = updater.update_ytdlp_with_versions(Path("yt-dlp.exe"))
+    result = updater.update_ytdlp_with_versions()
 
     assert not result.ok
     assert result.status == "failed"
     assert result.before_version == "2026.06.01"
     assert result.after_version == ""
     assert result.message == "update failed"
+

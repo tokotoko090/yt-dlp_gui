@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import mimetypes
@@ -20,8 +20,15 @@ from urllib.parse import parse_qs, urlparse
 
 from src.core.config import AppConfig, ConfigStore
 from src.core.format_probe import FormatProbeResult, probe_formats
-from src.core.paths import app_root, vendor_path
+from src.core.paths import app_root, ffmpeg_path, ytdlp_path
 from src.core.updater import update_ytdlp_with_versions
+from src.core.updates import (
+    check_updates,
+    install_or_update_ffmpeg,
+    install_or_update_ytdlp,
+    launch_app_update_helper,
+    prepare_app_update,
+)
 from src.web.manager import DownloadManager
 
 
@@ -37,6 +44,15 @@ class WebApp:
         self.config = self.config_store.load()
         self.manager = DownloadManager(self.config)
         self.server: ThreadingHTTPServer | None = None
+        self.updates: dict[str, dict[str, object]] = {}
+        self.refresh_updates_async()
+
+    def refresh_updates(self) -> dict[str, dict[str, object]]:
+        self.updates = check_updates()
+        return self.updates
+
+    def refresh_updates_async(self) -> None:
+        threading.Thread(target=self.refresh_updates, daemon=True).start()
 
 
 def run_server(host: str = "127.0.0.1", port: int = 0, open_browser: bool = True) -> int:
@@ -75,6 +91,10 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
             if parsed.path == "/api/jobs":
                 self._send_json({"jobs": app.manager.list_jobs()})
                 return
+            if parsed.path == "/api/updates":
+                refresh = parse_qs(parsed.query).get("refresh", [""])[0] in {"1", "true", "yes"}
+                self._send_json({"updates": app.refresh_updates() if refresh or not app.updates else app.updates})
+                return
             if parsed.path.startswith("/api/jobs/"):
                 job_id = parsed.path.rsplit("/", 1)[-1]
                 job = app.manager.get_job(job_id)
@@ -95,7 +115,7 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
                     return
                 try:
                     result = probe_formats(
-                        vendor_path("yt-dlp.exe"),
+                        ytdlp_path(),
                         url,
                         str(payload.get("cookies_path") or app.config.cookies_path),
                         bool(payload.get("use_browser_cookies")),
@@ -143,8 +163,41 @@ def _handler(app: WebApp) -> type[BaseHTTPRequestHandler]:
                     return
                 self._send_json({"cancelled": False, "path": selected})
                 return
+            if parsed.path == "/api/updates/yt-dlp":
+                result = install_or_update_ytdlp()
+                app.refresh_updates_async()
+                payload = result.as_dict()
+                if not result.ok:
+                    payload["error"] = result.message
+                self._send_json(payload, status=HTTPStatus.OK if result.ok else HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
+            if parsed.path == "/api/updates/ffmpeg":
+                result = install_or_update_ffmpeg()
+                app.refresh_updates_async()
+                payload = result.as_dict()
+                if not result.ok:
+                    payload["error"] = result.message
+                self._send_json(payload, status=HTTPStatus.OK if result.ok else HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
+            if parsed.path == "/api/updates/app":
+                result = prepare_app_update()
+                payload = result.as_dict()
+                if result.ok and result.status == "ready":
+                    lines = result.lines or []
+                    if len(lines) >= 2:
+                        launch_app_update_helper(lines[0], lines[1])
+                        payload["shutdown"] = True
+                        self._send_json(payload)
+                        if app.server:
+                            threading.Thread(target=app.server.shutdown, daemon=True).start()
+                        return
+                if not result.ok:
+                    payload["error"] = result.message
+                self._send_json(payload, status=HTTPStatus.OK if result.ok else HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
             if parsed.path == "/api/yt-dlp/update":
                 result = update_ytdlp_with_versions()
+                app.refresh_updates_async()
                 payload = result.as_dict()
                 if not result.ok:
                     payload["error"] = result.message
@@ -258,8 +311,8 @@ def _config_payload(config: AppConfig) -> dict[str, Any]:
     return {
         "config": {**asdict(config), "audio_codec": audio_codec},
         "app_root": str(app_root()),
-        "yt_dlp": str(vendor_path("yt-dlp.exe")),
-        "ffmpeg": str(vendor_path("ffmpeg.exe")),
+        "yt_dlp": str(ytdlp_path()),
+        "ffmpeg": str(ffmpeg_path()),
         "quality_options": ["最高", "4320p以下", "2160p以下", "1440p以下", "1080p以下", "720p以下", "480p以下", "360p以下"],
         "video_codecs": ["自動", "H.264優先", "VP9優先", "AV1優先"],
         "audio_codecs": ["auto", "aac", "opus", "mp3"],
@@ -411,7 +464,7 @@ def _video_encoder_options() -> list[dict[str, str]]:
 def _ffmpeg_has_encoder(name: str) -> bool:
     try:
         completed = subprocess.run(
-            [str(vendor_path("ffmpeg.exe")), "-hide_banner", "-encoders"],
+            [str(ffmpeg_path()), "-hide_banner", "-encoders"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -423,3 +476,6 @@ def _ffmpeg_has_encoder(name: str) -> bool:
     except (OSError, subprocess.TimeoutExpired):
         return False
     return name in completed.stdout or name in completed.stderr
+
+
+

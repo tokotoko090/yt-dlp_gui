@@ -1,10 +1,11 @@
-const state = {
+﻿const state = {
   selectedJobId: null,
   jobNodes: new Map(),
   queue: [],
   nextQueueId: 1,
   currentProbe: null,
   currentProbeUrl: "",
+  updates: {},
 };
 
 const $ = (id) => document.getElementById(id);
@@ -55,6 +56,10 @@ async function fetchFormats() {
   const url = inputUrl();
   if (!url) {
     setProbeState("URLを入力してください。");
+    return;
+  }
+  if (!dependenciesReady()) {
+    setProbeState("yt-dlp と ffmpeg を先に取得してください。");
     return;
   }
   $("fetchFormatsButton").disabled = true;
@@ -205,6 +210,7 @@ function renderQueue() {
     el.querySelector('[data-action="remove"]').addEventListener("click", () => removeQueuedItem(item.id));
     root.appendChild(el);
   });
+  syncDependencyGate();
 }
 
 function currentPayload(url, probe) {
@@ -280,7 +286,7 @@ function renderFormatOptions(probe) {
   fillSelect($("audioFormat"), probe.audio_options || [], "format_id", "label");
   $("videoFormat").disabled = videoOptions.length === 0;
   $("audioFormat").disabled = (probe.audio_options || []).length === 0;
-  $("addQueueButton").disabled = !videoOptions.length && !(probe.audio_options || []).length;
+  $("addQueueButton").disabled = (!videoOptions.length && !(probe.audio_options || []).length) || !dependenciesReady();
   syncConversionNotice(false);
 }
 
@@ -666,7 +672,10 @@ $("shutdownButton").addEventListener("click", () => shutdownApp(false));
 $("selectOutputDir").addEventListener("click", selectOutputDir);
 $("selectCookiesFile").addEventListener("click", selectCookiesFile);
 $("refreshJobs").addEventListener("click", refreshJobs);
+$("checkUpdates").addEventListener("click", () => loadUpdates(true));
 $("updateYtDlp").addEventListener("click", updateYtDlp);
+$("updateFfmpeg").addEventListener("click", updateFfmpeg);
+$("updateApp").addEventListener("click", updateApp);
 document.querySelectorAll('input[name="modeSelect"]').forEach((input) => {
   input.addEventListener("change", syncMode);
 });
@@ -695,7 +704,98 @@ $("urlInput").addEventListener("keydown", (event) => {
 
 syncClearUrlButton();
 renderQueue();
-loadConfig().then(refreshJobs).catch((error) => {
+Promise.all([loadConfig(), loadUpdates(false)]).then(refreshJobs).catch((error) => {
   $("appRoot").textContent = error.message;
 });
 setInterval(refreshJobs, 1500);
+
+async function loadUpdates(refresh = false) {
+  try {
+    const data = await api(`/api/updates${refresh ? "?refresh=1" : ""}`);
+    state.updates = data.updates || {};
+    renderUpdates();
+    syncDependencyGate();
+  } catch (error) {
+    $("updateSummary").textContent = `更新確認に失敗しました: ${error.message}`;
+  }
+}
+
+function renderUpdates() {
+  const updates = state.updates || {};
+  const items = [updates.app, updates.yt_dlp, updates.ffmpeg].filter(Boolean);
+  const missingTools = [updates.yt_dlp, updates.ffmpeg].filter((item) => item && !item.installed).length;
+  const available = items.filter((item) => item.available).length;
+  if (missingTools) {
+    $("updateSummary").textContent = "初回セットアップが必要です。yt-dlp と ffmpeg を取得してください。";
+  } else if (available) {
+    $("updateSummary").textContent = `${available} 件の更新があります。`;
+  } else if (items.length) {
+    $("updateSummary").textContent = "更新確認が完了しました。";
+  }
+  renderUpdateCard("app", updates.app);
+  renderUpdateCard("yt_dlp", updates.yt_dlp);
+  renderUpdateCard("ffmpeg", updates.ffmpeg);
+}
+
+function renderUpdateCard(key, item) {
+  const card = document.querySelector(`[data-update-card="${key}"]`);
+  if (!card || !item) return;
+  const status = card.querySelector('[data-update-field="status"]');
+  const version = card.querySelector('[data-update-field="version"]');
+  const button = card.querySelector("button");
+  status.textContent = item.message || "確認済み";
+  version.textContent = `現在: ${item.current || "未導入"} / 最新: ${item.latest || "不明"}`;
+  card.classList.toggle("missing", !item.installed);
+  card.classList.toggle("available", !!item.available);
+  if (button) {
+    button.disabled = key === "app" ? !item.available : false;
+  }
+}
+
+function dependenciesReady() {
+  const updates = state.updates || {};
+  return !!(updates.yt_dlp?.installed && updates.ffmpeg?.installed);
+}
+
+function syncDependencyGate() {
+  const ready = dependenciesReady();
+  if ($("fetchFormatsButton")) $("fetchFormatsButton").disabled = !ready;
+  if ($("startAllButton")) $("startAllButton").disabled = !ready || state.queue.every((entry) => entry.started);
+  if ($("addQueueButton") && !state.currentProbe) $("addQueueButton").disabled = true;
+  if ($("addQueueButton") && state.currentProbe) {
+    const hasFormats = (state.currentProbe.video_options || []).length || (state.currentProbe.audio_options || []).length || (state.currentProbe.muxed_options || []).length;
+    $("addQueueButton").disabled = !ready || !hasFormats;
+  }
+}
+
+async function runUpdate(endpoint, buttonId) {
+  const button = $(buttonId);
+  if (button) button.disabled = true;
+  $("updateSummary").textContent = "更新処理中...";
+  try {
+    const data = await api(endpoint, { method: "POST", body: "{}" });
+    $("updateSummary").textContent = data.message || "更新処理が完了しました。";
+    if (data.shutdown) {
+      document.body.innerHTML = '<main class="shell"><section class="section"><h1>更新を適用しています</h1><p>アプリが自動的に再起動するまでお待ちください。</p></section></main>';
+      return;
+    }
+    await loadUpdates(true);
+  } catch (error) {
+    $("updateSummary").textContent = `更新に失敗しました: ${error.message}`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function updateYtDlp() {
+  await runUpdate("/api/updates/yt-dlp", "updateYtDlp");
+}
+
+async function updateFfmpeg() {
+  await runUpdate("/api/updates/ffmpeg", "updateFfmpeg");
+}
+
+async function updateApp() {
+  await runUpdate("/api/updates/app", "updateApp");
+}
+

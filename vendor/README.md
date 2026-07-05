@@ -1,8 +1,10 @@
-# vendor
+﻿# vendor
 
-Place external binaries here for local runs and packaging:
+This directory is kept for development notes and backward compatibility only.
 
-- `yt-dlp.exe`
-- `ffmpeg.exe`
+Runtime builds do not bundle external binaries. The app downloads tools into the per-user data directory instead:
 
-These binaries are intentionally ignored by Git.
+- `%APPDATA%\YtDlpWebUi\bin\yt-dlp.exe`
+- `%APPDATA%\YtDlpWebUi\bin\ffmpeg.exe`
+
+Do not commit downloaded binaries.

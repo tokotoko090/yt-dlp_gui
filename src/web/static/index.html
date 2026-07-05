@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="utf-8">
@@ -13,13 +13,47 @@
           <h1>yt-dlp Web UI</h1>
           <p id="appRoot"></p>
         </div>
-        <div class="header-actions">
-          <button id="updateYtDlp" class="secondary" type="button">yt-dlp 更新</button>
-          <span id="ytDlpUpdateStatus" class="update-status" aria-live="polite"></span>
+                <div class="header-actions">
           <button id="refreshJobs" class="icon-button" title="進捗を更新" type="button">↻</button>
           <button id="shutdownButton" class="danger" type="button">終了</button>
         </div>
       </header>
+
+      <section class="update-panel" aria-label="アップデート">
+        <div class="update-panel-head">
+          <div>
+            <h2>アップデート</h2>
+            <p id="updateSummary">起動時に更新を確認しています。</p>
+          </div>
+          <button id="checkUpdates" class="secondary" type="button">更新確認</button>
+        </div>
+        <div class="update-grid">
+          <article class="update-card" data-update-card="app">
+            <div>
+              <h3>yt-dlp-webUI</h3>
+              <p data-update-field="status">確認中...</p>
+              <p class="update-version" data-update-field="version"></p>
+            </div>
+            <button id="updateApp" class="secondary" type="button" disabled>本体更新</button>
+          </article>
+          <article class="update-card" data-update-card="yt_dlp">
+            <div>
+              <h3>yt-dlp</h3>
+              <p data-update-field="status">確認中...</p>
+              <p class="update-version" data-update-field="version"></p>
+            </div>
+            <button id="updateYtDlp" class="secondary" type="button" disabled>取得/更新</button>
+          </article>
+          <article class="update-card" data-update-card="ffmpeg">
+            <div>
+              <h3>ffmpeg</h3>
+              <p data-update-field="status">確認中...</p>
+              <p class="update-version" data-update-field="version"></p>
+            </div>
+            <button id="updateFfmpeg" class="secondary" type="button" disabled>取得/更新</button>
+          </article>
+        </div>
+      </section>
 
       <section class="layout">
         <section class="workbench">
@@ -173,3 +207,4 @@
     <script src="/static/app.js"></script>
   </body>
 </html>
+
