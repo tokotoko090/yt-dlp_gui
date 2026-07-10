@@ -138,3 +138,4 @@ def test_probe_format_data_uses_cookie_file_only(monkeypatch) -> None:
     assert "--cookies" in captured["cmd"]
     assert "C:/cookies.txt" in captured["cmd"]
     assert "--cookies-from-browser" not in captured["cmd"]
+    assert "--ignore-config" in captured["cmd"]

@@ -38,7 +38,15 @@ def _probe_format_data(
     cookies_path: str = "",
     extractor_args: str = "",
 ) -> dict[str, Any]:
-    cmd = [str(ytdlp_path), "--js-runtimes", "node", "-J", "--no-playlist", url]
+    cmd = [
+        str(ytdlp_path),
+        "--ignore-config",
+        "--js-runtimes",
+        "node",
+        "-J",
+        "--no-playlist",
+        url,
+    ]
     if cookies_path:
         cmd[1:1] = ["--cookies", cookies_path]
     if extractor_args:
